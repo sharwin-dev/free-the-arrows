@@ -16,6 +16,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
     *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none}
+    input, select, textarea {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+    }
     html,body{height:100%;overflow:hidden}
     
     :root {
@@ -3084,7 +3088,9 @@ function promptName(isEditing = false) {
   }
   
   overlay.classList.add('show');
-  input.focus();
+  if (isEditing) {
+    input.focus();
+  }
 }
 
 document.getElementById('name-form').addEventListener('submit', (e) => {
