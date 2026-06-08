@@ -1,5 +1,12 @@
-const CACHE = 'fta-v2';
-const ASSETS = ['/', '/index.html', '/icon.png', '/manifest.json'];
+const CACHE = 'fta-v3';
+const ASSETS = [
+  './',
+  './index.html',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png',
+  './manifest.json'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
