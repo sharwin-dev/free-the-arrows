@@ -98,8 +98,6 @@
       --btn-primary-active-bg: linear-gradient(135deg, #0E9A75 0%, #29C067 100%);
     }
 
-
-
     body.theme-alabaster {
       --bg-gradient: radial-gradient(circle at center, #F9FAFB 0%, #F3F4F6 100%);
       --bg-color: #F3F4F6;
@@ -496,7 +494,7 @@
     <h2 style="font-size: 1.6rem; margin-bottom: 6px;" id="name-prompt-title">Welcome Player!</h2>
     <p style="color: var(--text-muted); margin-bottom: 18px; font-size: 0.95rem;">Please enter your name to customize your dashboard.</p>
     <form id="name-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:12px; width:100%;">
-      <input type="text" id="name-input" placeholder="Your Name" maxlength="15" required style="width:100%; padding:12px; border:2px solid var(--border-color); border-radius:12px; font-family:inherit; font-size:1.1rem; text-align:center; color:var(--text-color); outline:none; background:var(--board-bg)">
+      <input type="text" id="name-input" inputmode="text" enterkeyhint="done" autocomplete="name" autocorrect="off" autocapitalize="words" placeholder="Your Name" maxlength="15" required style="width:100%; padding:12px; border:2px solid var(--border-color); border-radius:12px; font-family:inherit; font-size:16px; text-align:center; color:var(--text-color); outline:none; background:var(--board-bg); -webkit-user-select:text; user-select:text; touch-action:manipulation">
       <button type="submit" class="obtn obtn-primary" id="btn-save-name" style="padding:13px; margin:0;">Start Playing</button>
     </form>
   </div>
@@ -1896,7 +1894,7 @@ customThemeSel.onchange = () => {
 function applyTheme(themeName) {
   const allowed = ['cyber', 'sunset', 'forest', 'alabaster'];
   const active = allowed.includes(themeName) ? themeName : 'cyber';
-  document.body.classList.remove('theme-cyber', 'theme-sunset', 'theme-forest', 'theme-sakura', 'theme-alabaster');
+  document.body.classList.remove('theme-cyber', 'theme-sunset', 'theme-forest', 'theme-alabaster');
   if (active !== 'cyber') {
     document.body.classList.add('theme-' + active);
   }
@@ -3088,10 +3086,28 @@ function promptName(isEditing = false) {
   }
   
   overlay.classList.add('show');
+  // iOS PWA standalone mode: use readOnly trick to force keyboard open
   if (isEditing) {
-    input.focus();
+    input.setAttribute('readOnly', 'readOnly');
+    setTimeout(() => {
+      input.removeAttribute('readOnly');
+      input.focus();
+      input.click();
+    }, 100);
   }
 }
+
+// iOS PWA: Ensure tapping the input always triggers keyboard
+(function() {
+  const nameInput = document.getElementById('name-input');
+  nameInput.addEventListener('click', function() {
+    this.focus();
+  });
+  nameInput.addEventListener('touchend', function(e) {
+    e.stopPropagation();
+    this.focus();
+  });
+})();
 
 document.getElementById('name-form').addEventListener('submit', (e) => {
   e.preventDefault();
