@@ -3084,7 +3084,7 @@ function promptName(isEditing = false) {
   }
   
   overlay.classList.add('show');
-  setTimeout(() => input.focus(), 150);
+  input.focus();
 }
 
 document.getElementById('name-form').addEventListener('submit', (e) => {
