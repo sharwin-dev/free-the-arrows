@@ -401,7 +401,7 @@
     <!-- Welcome Header -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; margin-top:10px;">
       <div>
-        <h1 style="font-size:1.6rem; font-weight:800; color:var(--text-color); line-height:1.2;">Hello, Archer!</h1>
+        <h1 id="home-greeting" style="font-size:1.6rem; font-weight:800; color:var(--text-color); line-height:1.2;">Hello, Player!</h1>
         <p style="font-size:0.85rem; color:var(--text-muted);">Ready to free some arrows?</p>
       </div>
       <div style="font-size:2.2rem; filter:drop-shadow(var(--arrow-glow));">🎯</div>
@@ -469,6 +469,11 @@
         <span style="font-size:0.9rem; font-weight:600; color:var(--text-color);">Sound Effects:</span>
         <button class="obtn obtn-primary" id="btn-toggle-sound" style="width:auto; margin:0; padding:8px 16px; border-radius:10px; font-size:0.85rem; font-weight:700;">Enabled</button>
       </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:12px;">
+        <span style="font-size:0.9rem; font-weight:600; color:var(--text-color);">Player Name:</span>
+        <button class="obtn obtn-secondary" id="btn-edit-name" style="width:auto; margin:0; padding:8px 16px; border-radius:10px; font-size:0.85rem; font-weight:700;">✏️ Edit Name</button>
+      </div>
     </div>
 
     <!-- Sandbox Mode Card -->
@@ -477,6 +482,19 @@
       <p style="font-size:0.8rem; color:var(--text-muted); margin:0;">Create custom board sizes, paint custom silhouettes, and run custom seeds.</p>
       <button class="obtn obtn-secondary" id="btn-home-sandbox" style="padding:12px; margin-bottom:0; font-size:0.95rem; width:100%;">Open Sandbox Configurator</button>
     </div>
+  </div>
+</div>
+
+<!-- Name Prompt Overlay -->
+<div class="overlay" id="ov-name-prompt" style="z-index: 120;">
+  <div class="card" style="max-width: 380px;">
+    <div style="font-size: 3rem; margin-bottom: 12px;">👋</div>
+    <h2 style="font-size: 1.6rem; margin-bottom: 6px;" id="name-prompt-title">Welcome Player!</h2>
+    <p style="color: var(--text-muted); margin-bottom: 18px; font-size: 0.95rem;">Please enter your name to customize your dashboard.</p>
+    <form id="name-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:12px; width:100%;">
+      <input type="text" id="name-input" placeholder="Your Name" maxlength="15" required style="width:100%; padding:12px; border:2px solid var(--border-color); border-radius:12px; font-family:inherit; font-size:1.1rem; text-align:center; color:var(--text-color); outline:none; background:var(--board-bg)">
+      <button type="submit" class="obtn obtn-primary" id="btn-save-name" style="padding:13px; margin:0;">Start Playing</button>
+    </form>
   </div>
 </div>
 
@@ -3038,6 +3056,51 @@ const Sound = {
 };
 
 /* ============================================================
+   PLAYER NAME IDENTIFICATION & EDITING
+   ============================================================ */
+let playerName = localStorage.getItem('fta-player-name') || '';
+
+function updateGreeting() {
+  const greetingEl = document.getElementById('home-greeting');
+  if (greetingEl) {
+    greetingEl.textContent = playerName ? `Hello, ${playerName}!` : 'Hello, Player!';
+  }
+}
+
+function promptName(isEditing = false) {
+  const overlay = document.getElementById('ov-name-prompt');
+  const title = document.getElementById('name-prompt-title');
+  const input = document.getElementById('name-input');
+  const saveBtn = document.getElementById('btn-save-name');
+  
+  if (isEditing) {
+    title.textContent = "Edit Name";
+    saveBtn.textContent = "Save Changes";
+    input.value = playerName;
+  } else {
+    title.textContent = "Welcome Player!";
+    saveBtn.textContent = "Start Playing";
+    input.value = '';
+  }
+  
+  overlay.classList.add('show');
+  setTimeout(() => input.focus(), 150);
+}
+
+document.getElementById('name-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const val = document.getElementById('name-input').value.trim();
+  playerName = val || 'Player';
+  localStorage.setItem('fta-player-name', playerName);
+  updateGreeting();
+  document.getElementById('ov-name-prompt').classList.remove('show');
+});
+
+document.getElementById('btn-edit-name').addEventListener('click', () => {
+  promptName(true);
+});
+
+/* ============================================================
    SERVICE WORKER
    ============================================================ */
 if ('serviceWorker' in navigator) {
@@ -3053,6 +3116,12 @@ if ('serviceWorker' in navigator) {
 const savedTheme = localStorage.getItem('fta-theme') || 'cyber';
 applyTheme(savedTheme);
 customThemeSel.value = savedTheme;
+
+// Init Player Name Greeting & Onboarding
+updateGreeting();
+if (!playerName) {
+  promptName(false);
+}
 
 // Init ambient drifting arrows and stats UI
 initAmbientArrows();
