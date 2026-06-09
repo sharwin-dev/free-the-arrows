@@ -136,7 +136,7 @@
     .level-label{font-size:1.05rem;font-weight:600;color:var(--accent-color);text-align:center;padding-bottom:4px;filter:drop-shadow(var(--arrow-glow))}
 
     /* ---- Board ---- */
-    .board-wrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:700px;padding:8px 12px;min-height:0}
+    .board-wrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:700px;padding:20px;min-height:0}
     .board{position:relative;width:100%;max-width:660px;max-height:100%;aspect-ratio:1/1;background:var(--board-bg);border:1.5px solid var(--board-border);border-radius:18px;box-shadow:var(--board-shadow);overflow:visible;transition:background .3s,border-color .3s,box-shadow .3s;backdrop-filter:blur(10px)}
 
     /* Screen shake */
@@ -151,11 +151,18 @@
       animation: shake 0.15s ease-in-out;
     }
 
+    /* ---- Loading Spinner ---- */
+    .board-loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:var(--board-bg);border-radius:18px;transition:opacity .25s ease}
+    .board-loader.hidden{opacity:0;pointer-events:none}
+    .board-loader .spinner{width:48px;height:48px;border:3px solid rgba(108,99,255,.15);border-top-color:var(--accent-color);border-radius:50%;animation:spin .7s linear infinite}
+    .board-loader .loader-text{position:absolute;margin-top:80px;font-size:.85rem;color:var(--accent-color);opacity:.7;letter-spacing:.5px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
     /* ---- Arrow ---- */
     .arrow{position:absolute;cursor:pointer;z-index:2}
     .arrow svg{display:block;width:100%;height:100%;overflow:visible}
     .arrow .shaft{stroke:var(--arrow-color);stroke-linecap:round;stroke-linejoin:round;fill:none;filter:drop-shadow(var(--arrow-glow));transition:stroke 0.25s,filter 0.25s}
-    .arrow .hit-area{stroke:transparent;stroke-linecap:round;stroke-linejoin:round;fill:none;pointer-events:stroke}
+    .arrow .hit-area{stroke:transparent;stroke-linecap:round;stroke-linejoin:round;fill:none;pointer-events:none}
     .arrow .head{fill:var(--arrow-color);filter:drop-shadow(var(--arrow-glow));transition:fill 0.25s,filter 0.25s}
     .arrow:active{opacity:.55}
 
@@ -216,6 +223,30 @@
         transform: translate(var(--dx), var(--dy)) scale(0);
         opacity: 0;
       }
+    }
+
+    /* Shape silhouette background cells */
+    .grid-bg-cell {
+      position: absolute;
+      background: var(--accent-bg);
+      opacity: 0.16;
+      border: 1.2px solid var(--border-color);
+      border-radius: 6px;
+      box-sizing: border-box;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .grid-bg-cell::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--dot-color);
+      opacity: 0.7;
     }
 
     /* ---- Bottom Bar ---- */
@@ -383,7 +414,11 @@
 
 <div class="board-wrap">
   <div class="board" id="board" style="overflow: hidden; touch-action: none;">
-    <div id="board-content" style="position: absolute; inset: 0; transform-origin: 0 0; transition: transform 0.15s ease-out;"></div>
+    <div id="board-content" style="position: absolute; inset: 4%; transform-origin: 0 0; transition: transform 0.15s ease-out, opacity 0.3s ease;"></div>
+    <div class="board-loader hidden" id="board-loader">
+      <div class="spinner"></div>
+      <span class="loader-text">Generating…</span>
+    </div>
     <div class="zoom-controls">
       <button class="zoom-btn" id="btn-zoom-in" aria-label="Zoom in">+</button>
       <button class="zoom-btn" id="btn-zoom-out" aria-label="Zoom out" disabled>-</button>
@@ -440,10 +475,9 @@
       
       <!-- Chapter selection -->
       <div class="chapter-tabs" style="margin-bottom:0; background:var(--btn-bg); border:1px solid var(--border-color);">
-        <button class="chapter-tab-btn active" id="btn-home-chap-zen">Zen Mode</button>
-        <button class="chapter-tab-btn" id="btn-home-chap-path">Pathfinder</button>
-        <button class="chapter-tab-btn" id="btn-home-chap-grand">Grandmaster</button>
+        <button class="chapter-tab-btn active" id="btn-home-chap-path">Pathfinder</button>
         <button class="chapter-tab-btn" id="btn-home-chap-god">God Mode</button>
+        <button class="chapter-tab-btn" id="btn-home-chap-shaped">Shape Odyssey</button>
       </div>
 
       <!-- Level Carousel Container -->
@@ -470,6 +504,13 @@
       <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:12px;">
         <span style="font-size:0.9rem; font-weight:600; color:var(--text-color);">Sound Effects:</span>
         <button class="obtn obtn-primary" id="btn-toggle-sound" style="width:auto; margin:0; padding:8px 16px; border-radius:10px; font-size:0.85rem; font-weight:700;">Enabled</button>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:12px;">
+        <span style="font-size:0.9rem; font-weight:600; color:var(--text-color);">Arrow Colors:</span>
+        <div style="display:flex; gap:8px;" id="arrow-color-selectors">
+          <!-- JS dynamic -->
+        </div>
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:12px;">
@@ -532,11 +573,10 @@
     
     <!-- Campaign Tab View -->
     <div id="view-campaign" style="display:flex; flex-direction:column; flex:1; overflow:hidden">
-      <div class="chapter-tabs">
-        <button class="chapter-tab-btn active" id="btn-chap-zen">Zen Mode</button>
-        <button class="chapter-tab-btn" id="btn-chap-path">Pathfinder</button>
-        <button class="chapter-tab-btn" id="btn-chap-grand">Grandmaster</button>
+       <div class="chapter-tabs">
+        <button class="chapter-tab-btn active" id="btn-chap-path">Pathfinder</button>
         <button class="chapter-tab-btn" id="btn-chap-god">God Mode</button>
+        <button class="chapter-tab-btn" id="btn-chap-shaped">Shape Odyssey</button>
       </div>
       <div class="lvl-scroll" style="flex:1; overflow-y:auto; padding:4px; margin-bottom:12px">
         <div class="lvl-grid" id="lvl-grid"></div>
@@ -560,11 +600,17 @@
         <select id="custom-shape" style="width:100%; padding:9px; border:2px solid var(--border-color); border-radius:10px; font-family:inherit; font-size:0.9rem; color:var(--text-color); outline:none; cursor:pointer; background:var(--board-bg)">
           <option value="square">Standard (Square)</option>
           <option value="heart">❤️ Heart Silhouette</option>
+          <option value="butterfly">🦋 Butterfly Silhouette</option>
           <option value="invader">👾 Space Invader</option>
           <option value="sword">⚔️ Pixel Sword</option>
           <option value="star">⭐ Five-Point Star</option>
           <option value="cat">🐱 Cat Silhouette</option>
           <option value="crown">👑 Royal Crown</option>
+          <option value="flower">🌸 Flower Silhouette</option>
+          <option value="ghost">👻 Ghost Silhouette</option>
+          <option value="apple">🍎 Apple Silhouette</option>
+          <option value="fish">🐟 Fish Silhouette</option>
+          <option value="moon">🌙 Crescent Moon</option>
           <option value="drawn">Paint Custom Shape...</option>
         </select>
       </div>
@@ -587,6 +633,7 @@
         </select>
       </div>
 
+
       <div style="margin-bottom:16px">
         <div style="font-size:0.82rem; font-weight:600; color:var(--text-color); margin-bottom:4px">Seed / Command:</div>
         <div style="display:flex; gap:8px">
@@ -598,7 +645,15 @@
       <button class="obtn obtn-primary" id="btn-custom-generate" style="margin-bottom:0; padding:12px">Play Custom Level</button>
     </div>
     
-    <div style="display:flex; gap:8px; margin-top:12px">
+    <div style="display:flex; gap:10px; align-items:center; margin-top:12px; padding-top:10px; border-top:1px solid var(--border-color)">
+      <div style="font-size:0.8rem; font-weight:600; color:var(--text-color); white-space:nowrap">Arrow Colors</div>
+      <select id="arrow-color-mode" style="flex:1; padding:7px 9px; border:2px solid var(--border-color); border-radius:10px; font-family:inherit; font-size:0.85rem; color:var(--text-color); outline:none; cursor:pointer; background:var(--board-bg)">
+        <option value="random">🎨 Random</option>
+        <option value="direction">🧭 By Direction</option>
+      </select>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-top:10px">
       <button class="obtn obtn-secondary" id="btn-menu-home" style="flex:1; margin-bottom:0; padding:11px">Main Menu</button>
       <button class="obtn obtn-secondary" id="btn-menu-close" style="flex:1; margin-bottom:0; padding:11px">Close Menu</button>
     </div>
@@ -758,6 +813,114 @@ const SILHOUETTES = {
       '4,12', '5,12', '6,12', '7,12', '8,12', '9,12', '10,12', '11,12', '12,12',
       '4,13', '11,13'
     ]
+  },
+  butterfly: {
+    name: '🦋 Butterfly Silhouette',
+    grid: 16,
+    cells: [
+      '5,2', '10,2', '6,3', '9,3',
+      '7,4', '8,4', '7,5', '8,5', '7,6', '8,6', '7,7', '8,7',
+      '7,8', '8,8', '7,9', '8,9', '7,10', '8,10', '7,11', '8,11',
+      '7,12', '8,12', '7,13', '8,13', '7,14', '8,14',
+      '3,4', '4,4', '5,4', '6,4',
+      '2,5', '3,5', '4,5', '5,5', '6,5',
+      '1,6', '2,6', '3,6', '4,6', '5,6', '6,6',
+      '1,7', '2,7', '3,7', '4,7', '5,7', '6,7',
+      '2,8', '3,8', '4,8', '5,8', '6,8',
+      '9,4', '10,4', '11,4', '12,4',
+      '9,5', '10,5', '11,5', '12,5', '13,5',
+      '9,6', '10,6', '11,6', '12,6', '13,6', '14,6',
+      '9,7', '10,7', '11,7', '12,7', '13,7', '14,7',
+      '9,8', '10,8', '11,8', '12,8', '13,8',
+      '3,9', '4,9', '5,9', '6,9',
+      '2,10', '3,10', '4,10', '5,10', '6,10',
+      '2,11', '3,11', '4,11', '5,11', '6,11',
+      '3,12', '4,12', '5,12', '6,12',
+      '4,13', '5,13',
+      '9,9', '10,9', '11,9', '12,9',
+      '9,10', '10,10', '11,10', '12,10', '13,10',
+      '9,11', '10,11', '11,11', '12,11', '13,11',
+      '9,12', '10,12', '11,12', '12,12',
+      '10,13', '11,13'
+    ]
+  },
+  flower: {
+    name: '🌸 Flower Silhouette',
+    grid: 16,
+    cells: [
+      '7,3', '8,3', '6,4', '7,4', '8,4', '9,4', '5,5', '6,5', '7,5', '8,5', '9,5', '10,5',
+      '3,6', '4,6', '5,6', '6,6', '7,6', '8,6', '9,6', '10,6', '11,6', '12,6',
+      '3,7', '4,7', '5,7', '6,7', '7,7', '8,7', '9,7', '10,7', '11,7', '12,7',
+      '3,8', '4,8', '5,8', '6,8', '7,8', '8,8', '9,8', '10,8', '11,8', '12,8',
+      '3,9', '4,9', '5,9', '6,9', '7,9', '8,9', '9,9', '10,9', '11,9', '12,9',
+      '5,10', '6,10', '7,10', '8,10', '9,10', '10,10',
+      '6,11', '7,11', '8,11', '9,11', '7,12', '8,12'
+    ]
+  },
+  ghost: {
+    name: '👻 Ghost Silhouette',
+    grid: 16,
+    cells: [
+      '5,2', '6,2', '7,2', '8,2', '9,2', '10,2',
+      '4,3', '5,3', '6,3', '7,3', '8,3', '9,3', '10,3', '11,3',
+      '3,4', '4,4', '5,4', '6,4', '7,4', '8,4', '9,4', '10,4', '11,4', '12,4',
+      '2,5', '3,5', '4,5', '5,5', '6,5', '7,5', '8,5', '9,5', '10,5', '11,5', '12,5', '13,5',
+      '2,6', '3,6', '4,6', '5,6', '6,6', '7,6', '8,6', '9,6', '10,6', '11,6', '12,6', '13,6',
+      '2,7', '3,7', '4,7', '5,7', '6,7', '7,7', '8,7', '9,7', '10,7', '11,7', '12,7', '13,7',
+      '2,8', '3,8', '4,8', '5,8', '6,8', '7,8', '8,8', '9,8', '10,8', '11,8', '12,8', '13,8',
+      '2,9', '3,9', '4,9', '5,9', '6,9', '7,9', '8,9', '9,9', '10,9', '11,9', '12,9', '13,9',
+      '2,10', '3,10', '4,10', '5,10', '6,10', '7,10', '8,10', '9,10', '10,10', '11,10', '12,10', '13,10',
+      '2,11', '3,11', '4,11', '5,11', '6,11', '7,11', '8,11', '9,11', '10,11', '11,11', '12,11', '13,11',
+      '2,12', '3,12', '4,12', '5,12', '6,12', '7,12', '8,12', '9,12', '10,12', '11,12', '12,12', '13,12',
+      '2,13', '3,13', '5,13', '6,13', '9,13', '10,13', '12,13', '13,13',
+      '2,14', '6,14', '9,14', '13,14'
+    ]
+  },
+  apple: {
+    name: '🍎 Apple Silhouette',
+    grid: 16,
+    cells: [
+      '6,2', '7,2', '7,3',
+      '4,4', '5,4', '6,4', '9,4', '10,4', '11,4',
+      '3,5', '4,5', '5,5', '6,5', '7,5', '8,5', '9,5', '10,5', '11,5', '12,5',
+      '2,6', '3,6', '4,6', '5,6', '6,6', '7,6', '8,6', '9,6', '10,6', '11,6', '12,6', '13,6',
+      '2,7', '3,7', '4,7', '5,7', '6,7', '7,7', '8,7', '9,7', '10,7', '11,7', '12,7', '13,7',
+      '2,8', '3,8', '4,8', '5,8', '6,8', '7,8', '8,8', '9,8', '10,8', '11,8', '12,8', '13,8',
+      '2,9', '3,9', '4,9', '5,9', '6,9', '7,9', '8,9', '9,9', '10,9', '11,9', '12,9', '13,9',
+      '3,10', '4,10', '5,10', '6,10', '7,10', '8,10', '9,10', '10,10', '11,10', '12,10',
+      '4,11', '5,11', '6,11', '7,11', '8,11', '9,11', '10,11', '11,11',
+      '5,12', '6,12', '9,12', '10,12'
+    ]
+  },
+  fish: {
+    name: '🐟 Fish Silhouette',
+    grid: 16,
+    cells: [
+      '3,7', '4,6', '4,7', '4,8', '5,5', '5,6', '5,7', '5,8', '5,9',
+      '6,4', '6,5', '6,6', '6,7', '6,8', '6,9', '6,10',
+      '7,4', '7,5', '7,6', '7,7', '7,8', '7,9', '7,10',
+      '8,4', '8,5', '8,6', '8,7', '8,8', '8,9', '8,10',
+      '9,5', '9,6', '9,7', '9,8', '9,9', '10,6', '10,7', '10,8',
+      '11,7', '12,6', '12,7', '12,8', '13,5', '13,6', '13,7', '13,8', '13,9'
+    ]
+  },
+  moon: {
+    name: '🌙 Crescent Moon',
+    grid: 16,
+    cells: [
+      '5,2', '6,2', '7,2', '8,2', '9,2',
+      '4,3', '5,3', '6,3', '7,3',
+      '3,4', '4,4', '5,4',
+      '2,5', '3,5', '4,5',
+      '2,6', '3,6',
+      '2,7', '3,7',
+      '2,8', '3,8',
+      '2,9', '3,9',
+      '2,10', '3,10', '4,10',
+      '3,11', '4,11', '5,11',
+      '4,12', '5,12', '6,12', '7,12',
+      '5,13', '6,13', '7,13', '8,13', '9,13'
+    ]
   }
 };
 
@@ -799,6 +962,641 @@ function getCustomDifficulty(grid, complexity) {
   return { grid, nMin, nMax, bends, depth };
 }
 
+const arrowColors = ['#00F2FE', '#FF2E93', '#FF9F43', '#2ED573', '#9B5DE5', '#FEE440', '#00BBF9', '#FFFFFF'];
+
+function generateFullyPackedArrows(grid, shapeType, customMask, rng, minLen = 2, maxLen = 5) {
+  const localDirDx = { up:0, down:0, left:-1, right:1 };
+  const localDirDy = { up:-1, down:1, left:0, right:0 };
+  const localDirs = ['up','down','left','right'];
+
+  const S = [];
+  const S_set = new Set();
+  for (let y = 0; y < grid; y++) {
+    for (let x = 0; x < grid; x++) {
+      if (isInShape(x, y, grid, shapeType, customMask)) {
+        S.push({ x, y });
+        S_set.add(x + ',' + y);
+      }
+    }
+  }
+
+  const maxSingleCellArrows = Math.max(2, Math.floor(S.length * 0.04));
+  const MAX_STEPS = 20000;       // total step budget per attempt
+  const GROW_CALL_CAP = 300;     // max steps per single growPath call
+
+  // Try generating up to 25 times with relaxation
+  for (let attempt = 0; attempt < 25; attempt++) {
+    let currentMinLen = minLen;
+    if (attempt > 8)  currentMinLen = Math.min(minLen, 3);
+    if (attempt > 14) currentMinLen = Math.min(minLen, 2);
+    if (attempt > 20) currentMinLen = 1;
+
+    const emptyCells = new Set(S_set);
+    const arrows = [];
+    let backtrackCount = 0;
+    let pathGrowSteps = 0;
+
+    function verifyRaycast(x, y, dir) {
+      const dx = localDirDx[dir];
+      const dy = localDirDy[dir];
+      let cx = x + dx;
+      let cy = y + dy;
+      while (cx >= 0 && cx < grid && cy >= 0 && cy < grid) {
+        const key = cx + ',' + cy;
+        if (S_set.has(key)) {
+          if (!emptyCells.has(key)) return false;
+        }
+        cx += dx;
+        cy += dy;
+      }
+      return true;
+    }
+
+    // BFS to find the connected component size from a starting cell
+    function bfsPocketSize(startX, startY, pathSetLocal) {
+      const visited = new Set();
+      const startKey = startX + ',' + startY;
+      visited.add(startKey);
+      const queue = [startKey];
+      let head = 0;
+      while (head < queue.length && visited.size < maxLen + 2) {
+        const k = queue[head++];
+        const [kx, ky] = k.split(',').map(Number);
+        for (const d of localDirs) {
+          const nx = kx + localDirDx[d];
+          const ny = ky + localDirDy[d];
+          const nk = nx + ',' + ny;
+          if (!visited.has(nk) && emptyCells.has(nk) && !pathSetLocal.has(nk)) {
+            visited.add(nk);
+            queue.push(nk);
+          }
+        }
+      }
+      return visited.size;
+    }
+
+    function backtrackSearch() {
+      if (emptyCells.size === 0) return true;
+      if (backtrackCount > 1500) return false;
+      if (pathGrowSteps > MAX_STEPS) return false;  // budget exceeded
+
+      // Warnsdorff: collect ALL cells with the fewest empty neighbors, pick one randomly
+      let minNeighbors = Infinity;
+      const candidates = [];
+      for (const key of emptyCells) {
+        const [cx, cy] = key.split(',').map(Number);
+        let n = 0;
+        for (const d of localDirs) {
+          const nx = cx + localDirDx[d];
+          const ny = cy + localDirDy[d];
+          if (emptyCells.has(nx + ',' + ny)) n++;
+        }
+        if (n < minNeighbors) {
+          minNeighbors = n;
+          candidates.length = 0;
+          candidates.push({ x: cx, y: cy });
+        } else if (n === minNeighbors) {
+          candidates.push({ x: cx, y: cy });
+        }
+      }
+
+      if (candidates.length === 0) return false;
+      const targetCell = candidates[Math.floor(rng() * candidates.length)];
+
+      const path = [targetCell];
+      const pathSet = new Set([targetCell.x + ',' + targetCell.y]);
+
+      function growPath(currCell, lengthLeft) {
+        pathGrowSteps++;
+        if (pathGrowSteps > MAX_STEPS) return false;
+        if (lengthLeft === 0) {
+          const orientations = [];
+
+          // End 1 (last cell in path is head)
+          const head1 = path[path.length - 1];
+          const prev1 = path[path.length - 2];
+          let dir1 = null;
+          for (const d of localDirs) {
+            if (prev1.x + localDirDx[d] === head1.x && prev1.y + localDirDy[d] === head1.y) {
+              dir1 = d; break;
+            }
+          }
+          if (dir1 && verifyRaycast(head1.x, head1.y, dir1)) {
+            orientations.push({ head: head1, dir: dir1, cells: [...path] });
+          }
+
+          // End 2 (first cell in path is head)
+          const head2 = path[0];
+          const prev2 = path[1];
+          let dir2 = null;
+          for (const d of localDirs) {
+            if (prev2.x + localDirDx[d] === head2.x && prev2.y + localDirDy[d] === head2.y) {
+              dir2 = d; break;
+            }
+          }
+          if (dir2 && verifyRaycast(head2.x, head2.y, dir2)) {
+            orientations.push({ head: head2, dir: dir2, cells: [...path].reverse() });
+          }
+
+          if (orientations.length > 0) {
+            const orient = orientations[Math.floor(rng() * orientations.length)];
+            const arrow = {
+              cells: orient.cells.map(c => ({...c})),
+              headDir: orient.dir,
+              color: arrowColors[Math.floor(rng() * arrowColors.length)],
+              active: true
+            };
+
+            arrows.push(arrow);
+            for (const c of arrow.cells) emptyCells.delete(c.x + ',' + c.y);
+
+            if (backtrackSearch()) return true;
+
+            for (const c of arrow.cells) emptyCells.add(c.x + ',' + c.y);
+            arrows.pop();
+            backtrackCount++;
+          }
+          return false;
+        }
+
+        const neighbors = [];
+        for (const d of localDirs) {
+          const nx = currCell.x + localDirDx[d];
+          const ny = currCell.y + localDirDy[d];
+          const key = nx + ',' + ny;
+          if (emptyCells.has(key) && !pathSet.has(key)) {
+            let nEmpty = 0;
+            for (const nd of localDirs) {
+              const nnx = nx + localDirDx[nd];
+              const nny = ny + localDirDy[nd];
+              if (emptyCells.has(nnx + ',' + nny) && !pathSet.has(nnx + ',' + nny)) nEmpty++;
+            }
+            neighbors.push({ x: nx, y: ny, nEmpty });
+          }
+        }
+
+        // Warnsdorff heuristic with randomized tie-breaking
+        neighbors.sort((a, b) => a.nEmpty - b.nEmpty || (rng() - 0.5));
+
+        for (const n of neighbors) {
+          path.push({ x: n.x, y: n.y });
+          pathSet.add(n.x + ',' + n.y);
+
+          if (growPath({ x: n.x, y: n.y }, lengthLeft - 1)) return true;
+
+          pathSet.delete(n.x + ',' + n.y);
+          path.pop();
+        }
+
+        return false;
+      }
+
+      // BFS pocket size to avoid trying lengths bigger than the pocket
+      const pocketSize = bfsPocketSize(targetCell.x, targetCell.y, pathSet);
+      const effectiveMax = Math.min(maxLen, emptyCells.size, pocketSize);
+      const effectiveMin = Math.max(2, Math.min(currentMinLen, emptyCells.size));
+
+      if (effectiveMax < effectiveMin) {
+        // Pocket too small for multi-cell arrow; try single-cell if allowed
+        if (currentMinLen === 1) {
+          const singleCellCount = arrows.filter(a => a.cells.length === 1).length;
+          if (singleCellCount < maxSingleCellArrows) {
+            const H = targetCell;
+            const validDirs = [];
+            for (const d of localDirs) {
+              if (verifyRaycast(H.x, H.y, d)) validDirs.push(d);
+            }
+            validDirs.sort(() => rng() - 0.5);
+            for (const dir of validDirs) {
+              const arrow = {
+                cells: [H],
+                headDir: dir,
+                color: arrowColors[Math.floor(rng() * arrowColors.length)],
+                active: true
+              };
+              arrows.push(arrow);
+              emptyCells.delete(H.x + ',' + H.y);
+              if (backtrackSearch()) return true;
+              emptyCells.add(H.x + ',' + H.y);
+              arrows.pop();
+            }
+          }
+        }
+        return false;
+      }
+
+      // Try lengths from max down to min, with per-length step cap
+      for (let len = effectiveMax; len >= effectiveMin; len--) {
+        const stepsBefore = pathGrowSteps;
+        if (growPath(targetCell, len - 1)) return true;
+        // If this length used too many steps, skip shorter lengths too
+        if (pathGrowSteps - stepsBefore > GROW_CALL_CAP) break;
+      }
+
+      // Fallback single-cell arrow during search if currentMinLen is 1
+      if (currentMinLen === 1) {
+        const singleCellCount = arrows.filter(a => a.cells.length === 1).length;
+        if (singleCellCount < maxSingleCellArrows) {
+          const H = targetCell;
+          const validDirs = [];
+          for (const d of localDirs) {
+            if (verifyRaycast(H.x, H.y, d)) validDirs.push(d);
+          }
+          validDirs.sort(() => rng() - 0.5);
+          for (const dir of validDirs) {
+            const arrow = {
+              cells: [H],
+              headDir: dir,
+              color: arrowColors[Math.floor(rng() * arrowColors.length)],
+              active: true
+            };
+            arrows.push(arrow);
+            emptyCells.delete(H.x + ',' + H.y);
+            if (backtrackSearch()) return true;
+            emptyCells.add(H.x + ',' + H.y);
+            arrows.pop();
+          }
+        }
+      }
+
+      return false;
+    }
+
+    if (backtrackSearch() && emptyCells.size === 0) {
+      return arrows;
+    }
+  }
+
+  return generateHeuristicPackedArrows(grid, shapeType, customMask, rng, maxLen);
+}
+
+function generateHeuristicPackedArrows(grid, shapeType, customMask, rng, maxLen) {
+  const localDirDx = { up:0, down:0, left:-1, right:1 };
+  const localDirDy = { up:-1, down:1, left:0, right:0 };
+  const localDirs = ['up','down','left','right'];
+
+  const S_set = new Set();
+  for (let y = 0; y < grid; y++) {
+    for (let x = 0; x < grid; x++) {
+      if (isInShape(x, y, grid, shapeType, customMask)) {
+        S_set.add(x + ',' + y);
+      }
+    }
+  }
+
+  const visited = new Set();
+  const allPaths = []; // array of arrays of {x,y}
+
+  // Build long Warnsdorff snake paths through the shape
+  function buildSnakePath(startX, startY) {
+    const path = [{ x: startX, y: startY }];
+    visited.add(startX + ',' + startY);
+    let cx = startX, cy = startY;
+
+    while (true) {
+      // Collect unvisited neighbors with Warnsdorff scoring
+      const neighbors = [];
+      for (const d of localDirs) {
+        const nx = cx + localDirDx[d];
+        const ny = cy + localDirDy[d];
+        const nk = nx + ',' + ny;
+        if (S_set.has(nk) && !visited.has(nk)) {
+          // Count how many unvisited neighbors this neighbor has
+          let degree = 0;
+          for (const d2 of localDirs) {
+            const nnx = nx + localDirDx[d2];
+            const nny = ny + localDirDy[d2];
+            if (S_set.has(nnx + ',' + nny) && !visited.has(nnx + ',' + nny)) degree++;
+          }
+          neighbors.push({ x: nx, y: ny, degree });
+        }
+      }
+
+      if (neighbors.length === 0) break;
+
+      // Warnsdorff: pick among cells with fewest unvisited neighbors, randomize ties
+      neighbors.sort((a, b) => a.degree - b.degree);
+      const minDeg = neighbors[0].degree;
+      const tied = neighbors.filter(n => n.degree === minDeg);
+      const chosen = tied[Math.floor(rng() * tied.length)];
+
+      path.push({ x: chosen.x, y: chosen.y });
+      visited.add(chosen.x + ',' + chosen.y);
+      cx = chosen.x;
+      cy = chosen.y;
+    }
+
+    return path;
+  }
+
+  // Start snake paths from unvisited cells, preferring corners/edges first
+  const allCells = [];
+  for (const key of S_set) {
+    const [x, y] = key.split(',').map(Number);
+    let edgeCount = 0;
+    for (const d of localDirs) {
+      if (!S_set.has((x + localDirDx[d]) + ',' + (y + localDirDy[d]))) edgeCount++;
+    }
+    allCells.push({ x, y, edgeCount });
+  }
+  // Sort so corner/edge cells (fewer shape neighbors) come first
+  allCells.sort((a, b) => b.edgeCount - a.edgeCount || (rng() - 0.5));
+
+  for (const cell of allCells) {
+    if (!visited.has(cell.x + ',' + cell.y)) {
+      const path = buildSnakePath(cell.x, cell.y);
+      if (path.length > 0) allPaths.push(path);
+    }
+  }
+
+  // Now partition each path into arrow segments of varying lengths
+  const arrows = [];
+  const usedCells = new Set();
+
+  function verifyRaycastHeuristic(x, y, dir) {
+    const dx = localDirDx[dir];
+    const dy = localDirDy[dir];
+    let cx = x + dx;
+    let cy = y + dy;
+    while (cx >= 0 && cx < grid && cy >= 0 && cy < grid) {
+      const key = cx + ',' + cy;
+      if (S_set.has(key) && !usedCells.has(key)) return false;
+      cx += dx;
+      cy += dy;
+    }
+    return true;
+  }
+
+  for (const path of allPaths) {
+    let i = 0;
+    while (i < path.length) {
+      const remaining = path.length - i;
+      // Pick a random segment length between 2 and maxLen
+      let segLen;
+      if (remaining <= 1) {
+        segLen = 1;
+      } else if (remaining <= maxLen) {
+        // Use all remaining cells if they fit in one arrow
+        segLen = remaining;
+      } else {
+        // Random length between 2 and maxLen, but leave at least 2 for next segment
+        const maxPossible = Math.min(maxLen, remaining - 2);
+        const minPossible = 2;
+        if (maxPossible < minPossible) {
+          segLen = remaining; // take whatever is left
+        } else {
+          segLen = minPossible + Math.floor(rng() * (maxPossible - minPossible + 1));
+        }
+      }
+
+      const segment = path.slice(i, i + segLen);
+      i += segLen;
+
+      if (segment.length === 0) continue;
+
+      // Mark cells as used
+      for (const c of segment) usedCells.add(c.x + ',' + c.y);
+
+      if (segment.length === 1) {
+        // Single cell: pick a valid direction
+        const H = segment[0];
+        const validDirs = localDirs.filter(d => verifyRaycastHeuristic(H.x, H.y, d));
+        const dir = validDirs.length > 0 ? validDirs[Math.floor(rng() * validDirs.length)] : localDirs[Math.floor(rng() * 4)];
+        arrows.push({
+          cells: [H],
+          headDir: dir,
+          color: arrowColors[Math.floor(rng() * arrowColors.length)],
+          active: true
+        });
+      } else {
+        // Multi-cell: try both ends as head, pick one with valid raycast
+        const orientations = [];
+
+        // End 1: last cell is head
+        const head1 = segment[segment.length - 1];
+        const prev1 = segment[segment.length - 2];
+        let dir1 = null;
+        for (const d of localDirs) {
+          if (prev1.x + localDirDx[d] === head1.x && prev1.y + localDirDy[d] === head1.y) {
+            dir1 = d; break;
+          }
+        }
+        if (dir1 && verifyRaycastHeuristic(head1.x, head1.y, dir1)) {
+          orientations.push({ dir: dir1, cells: [...segment] });
+        }
+
+        // End 2: first cell is head
+        const head2 = segment[0];
+        const prev2 = segment[1];
+        let dir2 = null;
+        for (const d of localDirs) {
+          if (prev2.x + localDirDx[d] === head2.x && prev2.y + localDirDy[d] === head2.y) {
+            dir2 = d; break;
+          }
+        }
+        if (dir2 && verifyRaycastHeuristic(head2.x, head2.y, dir2)) {
+          orientations.push({ dir: dir2, cells: [...segment].reverse() });
+        }
+
+        if (orientations.length > 0) {
+          const orient = orientations[Math.floor(rng() * orientations.length)];
+          arrows.push({
+            cells: orient.cells.map(c => ({...c})),
+            headDir: orient.dir,
+            color: arrowColors[Math.floor(rng() * arrowColors.length)],
+            active: true
+          });
+        } else {
+          // No valid raycast for either end — use dir1 or dir2 as-is
+          const fallbackDir = dir1 || dir2 || localDirs[Math.floor(rng() * 4)];
+          arrows.push({
+            cells: segment.map(c => ({...c})),
+            headDir: fallbackDir,
+            color: arrowColors[Math.floor(rng() * arrowColors.length)],
+            active: true
+          });
+        }
+      }
+    }
+  }
+
+  return arrows;
+}
+
+/* ============================================================
+   SOLVABILITY GUARANTOR
+   Simulates the puzzle, finds deadlock cycles, and flips arrow
+   directions until every arrow can be freed.
+   ============================================================ */
+function ensureSolvable(arrows, grid, rng) {
+  const dxMap = { up:0, down:0, left:-1, right:1 };
+  const dyMap = { up:-1, down:1, left:0, right:0 };
+  const dirFromDelta = (dx, dy) => {
+    if (dx === 1) return 'right';
+    if (dx === -1) return 'left';
+    if (dy === -1) return 'up';
+    return 'down';
+  };
+
+  // Build cell lookup: "x,y" -> arrow index
+  function buildCellIndex() {
+    const idx = {};
+    for (let i = 0; i < arrows.length; i++) {
+      for (const c of arrows[i].cells) idx[c.x + ',' + c.y] = i;
+    }
+    return idx;
+  }
+
+  // Check if arrow is blocked given active flags
+  function isBlocked(aIdx, active, cellIdx) {
+    const a = arrows[aIdx];
+    const head = a.cells[a.cells.length - 1];
+    const dx = dxMap[a.headDir];
+    const dy = dyMap[a.headDir];
+    let cx = head.x + dx, cy = head.y + dy;
+    while (cx >= 0 && cx < grid && cy >= 0 && cy < grid) {
+      const k = cx + ',' + cy;
+      if (k in cellIdx && cellIdx[k] !== aIdx && active[cellIdx[k]]) return true;
+      cx += dx; cy += dy;
+    }
+    return false;
+  }
+
+  // Simulate solving: repeatedly free unblocked arrows, return count freed
+  function simulate(cellIdx) {
+    const active = arrows.map(() => true);
+    let freed = 0;
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let i = 0; i < arrows.length; i++) {
+        if (!active[i]) continue;
+        if (!isBlocked(i, active, cellIdx)) {
+          active[i] = false;
+          freed++;
+          changed = true;
+        }
+      }
+    }
+    return { freed, active };
+  }
+
+  // Flip a multi-cell arrow (reverse cells, head moves to other end)
+  function flipArrow(a) {
+    if (a.cells.length >= 2) {
+      a.cells.reverse();
+      const head = a.cells[a.cells.length - 1];
+      const prev = a.cells[a.cells.length - 2];
+      a.headDir = dirFromDelta(head.x - prev.x, head.y - prev.y);
+    } else {
+      // Single cell: rotate direction 90° clockwise
+      const rot = { up:'right', right:'down', down:'left', left:'up' };
+      a.headDir = rot[a.headDir];
+    }
+  }
+
+  // Try to find the best direction for an arrow among all options
+  function tryAllDirections(aIdx, active, cellIdx) {
+    const a = arrows[aIdx];
+    const origCells = a.cells.map(c => ({...c}));
+    const origDir = a.headDir;
+
+    // For multi-cell: try both orientations
+    // For single-cell: try all 4 directions
+    const attempts = [];
+
+    if (a.cells.length >= 2) {
+      // Orientation 1: current
+      attempts.push({ cells: origCells.map(c => ({...c})), headDir: origDir });
+      // Orientation 2: reversed
+      const rev = [...origCells].reverse();
+      const rHead = rev[rev.length - 1];
+      const rPrev = rev[rev.length - 2];
+      attempts.push({
+        cells: rev,
+        headDir: dirFromDelta(rHead.x - rPrev.x, rHead.y - rPrev.y)
+      });
+    } else {
+      for (const d of ['up','down','left','right']) {
+        attempts.push({ cells: [{...origCells[0]}], headDir: d });
+      }
+    }
+
+    // Try each orientation, pick one that's unblocked or blocks fewest others
+    let bestAttempt = null;
+    let bestScore = -1;
+
+    for (const att of attempts) {
+      a.cells = att.cells;
+      a.headDir = att.headDir;
+      // Rebuild cell index for this arrow
+      const testIdx = {...cellIdx};
+      for (const c of att.cells) testIdx[c.x + ',' + c.y] = aIdx;
+
+      if (!isBlocked(aIdx, active, testIdx)) {
+        // This direction is free — best possible
+        return true;
+      }
+
+      // Count how many other stuck arrows this would unblock if we removed aIdx
+      const testActive = [...active];
+      testActive[aIdx] = false;
+      let unblocked = 0;
+      for (let j = 0; j < arrows.length; j++) {
+        if (!testActive[j] || j === aIdx) continue;
+        if (!isBlocked(j, testActive, testIdx)) unblocked++;
+      }
+      if (unblocked > bestScore) {
+        bestScore = unblocked;
+        bestAttempt = att;
+      }
+    }
+
+    if (bestAttempt) {
+      a.cells = bestAttempt.cells;
+      a.headDir = bestAttempt.headDir;
+    }
+    return false;
+  }
+
+  // Main loop: simulate, fix stuck arrows, repeat
+  for (let iter = 0; iter < 100; iter++) {
+    const cellIdx = buildCellIndex();
+    const result = simulate(cellIdx);
+    if (result.freed === arrows.length) return; // fully solvable!
+
+    // Find stuck arrows (still active after simulation)
+    const stuck = [];
+    for (let i = 0; i < arrows.length; i++) {
+      if (result.active[i]) stuck.push(i);
+    }
+
+    // Pick a random stuck arrow and try to fix it
+    const target = stuck[Math.floor(rng() * stuck.length)];
+    const fixed = tryAllDirections(target, result.active, cellIdx);
+
+    if (!fixed) {
+      // If neither direction works, flip a random stuck neighbor to break the cycle
+      // Find which arrows are blocking the target
+      const a = arrows[target];
+      const head = a.cells[a.cells.length - 1];
+      const dx = dxMap[a.headDir];
+      const dy = dyMap[a.headDir];
+      let cx = head.x + dx, cy = head.y + dy;
+      while (cx >= 0 && cx < grid && cy >= 0 && cy < grid) {
+        const k = cx + ',' + cy;
+        if (k in cellIdx && cellIdx[k] !== target && result.active[cellIdx[k]]) {
+          flipArrow(arrows[cellIdx[k]]);
+          break;
+        }
+        cx += dx; cy += dy;
+      }
+    }
+  }
+  // After max iterations, puzzle may still not be perfectly solvable
+  // but it's much better than the original
+}
+
 function generateCustomLevel(grid, complexity, seedVal, shapeType, customMask) {
   let numericSeed;
   const seedStr = String(seedVal).trim();
@@ -812,297 +1610,32 @@ function generateCustomLevel(grid, complexity, seedVal, shapeType, customMask) {
 
   const rng = mulberry32(numericSeed * 7919 + 1337);
 
-  // Map complexity to arrow length and bend limits
-  let maxLen = 3;
-  let maxBends = 0;
-  if (complexity === 1) { maxLen = 2; maxBends = 0; }
-  else if (complexity === 2) { maxLen = 3; maxBends = 0; }
-  else if (complexity === 3) { maxLen = 4; maxBends = 1; }
-  else if (complexity === 4) { maxLen = 5; maxBends = 2; }
-  else { maxLen = 6; maxBends = 3; }
+  let minLen = 2;
+  let maxLen = 4;
 
-  // 1. Find all valid cells inside the shape
-  const S = [];
-  const S_set = new Set();
-  for (let y = 0; y < grid; y++) {
-    for (let x = 0; x < grid; x++) {
-      if (isInShape(x, y, grid, shapeType, customMask)) {
-        S.push({ x, y });
-        S_set.add(x + ',' + y);
-      }
-    }
+  if (complexity === 1) {
+    minLen = 2;
+    maxLen = Math.max(3, Math.floor(grid * 0.25));
+  } else if (complexity === 2) {
+    minLen = 2;
+    maxLen = Math.max(4, Math.floor(grid * 0.4));
+  } else if (complexity === 3) {
+    minLen = Math.max(2, Math.floor(grid * 0.15));
+    maxLen = Math.max(5, Math.floor(grid * 0.6));
+  } else if (complexity === 4) {
+    minLen = Math.max(3, Math.floor(grid * 0.2));
+    maxLen = Math.max(6, Math.floor(grid * 0.75));
+  } else { // complexity === 5
+    minLen = Math.max(4, Math.floor(grid * 0.25));
+    maxLen = Math.max(8, Math.floor(grid * 0.9));
   }
 
-  // 2. Compute depths of all cells using BFS starting from the outside
-  const depths = {};
-  const queue = [];
-  
-  for (const c of S) {
-    let isBorder = false;
-    for (const d of DIRS) {
-      const nx = c.x + DIR_DX[d];
-      const ny = c.y + DIR_DY[d];
-      if (nx < 0 || nx >= grid || ny < 0 || ny >= grid || !S_set.has(nx + ',' + ny)) {
-        isBorder = true;
-        break;
-      }
-    }
-    if (isBorder) {
-      depths[c.x + ',' + c.y] = 1;
-      queue.push(c);
-    }
-  }
+  // Ensure reasonable bounds
+  if (minLen < 2) minLen = 2;
+  if (maxLen < minLen) maxLen = minLen;
 
-  while (queue.length > 0) {
-    const curr = queue.shift();
-    const currKey = curr.x + ',' + curr.y;
-    const currDepth = depths[currKey];
-
-    for (const d of DIRS) {
-      const nx = curr.x + DIR_DX[d];
-      const ny = curr.y + DIR_DY[d];
-      const nKey = nx + ',' + ny;
-      if (S_set.has(nKey) && depths[nKey] === undefined) {
-        depths[nKey] = currDepth + 1;
-        queue.push({ x: nx, y: ny });
-      }
-    }
-  }
-
-  for (const c of S) {
-    const key = c.x + ',' + c.y;
-    if (depths[key] === undefined) {
-      depths[key] = 99;
-    }
-  }
-
-  // 3. Keep track of uncovered cells
-  const U = new Set(S_set);
-  const C = new Set();
-  const arrows = [];
-
-  function countNeighborsInU(x, y) {
-    let count = 0;
-    for (const d of DIRS) {
-      const nx = x + DIR_DX[d];
-      const ny = y + DIR_DY[d];
-      if (U.has(nx + ',' + ny)) count++;
-    }
-    return count;
-  }
-
-  function verifyRaycast(head, dir, pathCellsSet) {
-    const dx = DIR_DX[dir];
-    const dy = DIR_DY[dir];
-    let cx = head.x + dx;
-    let cy = head.y + dy;
-
-    while (cx >= 0 && cx < grid && cy >= 0 && cy < grid) {
-      const key = cx + ',' + cy;
-      if (S_set.has(key)) {
-        if (pathCellsSet.has(key)) return false;
-        if (U.has(key)) return false;
-      }
-      cx += dx;
-      cy += dy;
-    }
-    return true;
-  }
-
-  let attempts = 0;
-  while (U.size > 0 && attempts < 1500) {
-    attempts++;
-    
-    let bestCell = null;
-    let minDepth = Infinity;
-    let minNeighbors = Infinity;
-
-    for (const key of U) {
-      const [xs, ys] = key.split(',').map(Number);
-      const d = depths[key];
-      const n = countNeighborsInU(xs, ys);
-      if (d < minDepth || (d === minDepth && n < minNeighbors)) {
-        minDepth = d;
-        minNeighbors = n;
-        bestCell = { x: xs, y: ys };
-      }
-    }
-
-    if (!bestCell) break;
-
-    let placed = false;
-    for (let tryPath = 0; tryPath < 50; tryPath++) {
-      const path = [bestCell];
-      const pathSet = new Set([bestCell.x + ',' + bestCell.y]);
-      const targetLen = 2 + Math.floor(rng() * (maxLen - 1));
-
-      let curr = bestCell;
-      let lastDir = null;
-      let bendsCount = 0;
-
-      while (path.length < targetLen) {
-        const neighbors = [];
-        for (const d of DIRS) {
-          const nx = curr.x + DIR_DX[d];
-          const ny = curr.y + DIR_DY[d];
-          const key = nx + ',' + ny;
-          if (U.has(key) && !pathSet.has(key)) {
-            neighbors.push({ x: nx, y: ny, dir: d });
-          }
-        }
-
-        if (neighbors.length === 0) break;
-
-        let chosen = null;
-        if (lastDir) {
-          if (bendsCount >= maxBends) {
-            chosen = neighbors.find(n => n.dir === lastDir);
-          } else {
-            const straight = neighbors.find(n => n.dir === lastDir);
-            if (straight && rng() < 0.65) {
-              chosen = straight;
-            }
-          }
-        }
-        if (!chosen) {
-          chosen = neighbors[Math.floor(rng() * neighbors.length)];
-          if (lastDir && chosen.dir !== lastDir) {
-            bendsCount++;
-          }
-        }
-
-        path.push(chosen);
-        pathSet.add(chosen.x + ',' + chosen.y);
-        curr = chosen;
-        lastDir = chosen.dir;
-      }
-
-      if (path.length < 2) continue;
-
-      const validOrientations = [];
-
-      const head1 = path[path.length - 1];
-      const prev1 = path[path.length - 2];
-      let dir1 = null;
-      for (const d of DIRS) {
-        if (prev1.x + DIR_DX[d] === head1.x && prev1.y + DIR_DY[d] === head1.y) {
-          dir1 = d;
-          break;
-        }
-      }
-      if (dir1 && verifyRaycast(head1, dir1, pathSet)) {
-        validOrientations.push({ head: head1, dir: dir1, cells: [...path] });
-      }
-
-      const head2 = path[0];
-      const prev2 = path[1];
-      let dir2 = null;
-      for (const d of DIRS) {
-        if (prev2.x + DIR_DX[d] === head2.x && prev2.y + DIR_DY[d] === head2.y) {
-          dir2 = d;
-          break;
-        }
-      }
-      if (dir2 && verifyRaycast(head2, dir2, pathSet)) {
-        validOrientations.push({ head: head2, dir: dir2, cells: [...path].reverse() });
-      }
-
-      if (validOrientations.length > 0) {
-        const chosenOrient = validOrientations[Math.floor(rng() * validOrientations.length)];
-        arrows.push({
-          cells: chosenOrient.cells,
-          headDir: chosenOrient.dir,
-          active: true
-        });
-
-        for (const c of path) {
-          const key = c.x + ',' + c.y;
-          U.delete(key);
-          C.add(key);
-        }
-        placed = true;
-        break;
-      }
-    }
-
-    if (!placed) {
-      U.delete(bestCell.x + ',' + bestCell.y);
-    }
-  }
-
-  // 4. Post-processing: absorb leftovers (cycle-safe: only prepend to tail)
-  const leftovers = new Set(S_set);
-  for (const a of arrows) {
-    for (const c of a.cells) {
-      leftovers.delete(c.x + ',' + c.y);
-    }
-  }
-
-  let mergedAny = true;
-  while (mergedAny && leftovers.size > 0) {
-    mergedAny = false;
-    for (const key of leftovers) {
-      const [lx, ly] = key.split(',').map(Number);
-      
-      for (const a of arrows) {
-        const start = a.cells[0];
-        const end = a.cells[a.cells.length - 1];
-        
-        let isAdjToStart = false;
-        for (const d of DIRS) {
-          if (lx + DIR_DX[d] === start.x && ly + DIR_DY[d] === start.y) {
-            isAdjToStart = true;
-            break;
-          }
-        }
-        
-        if (isAdjToStart) {
-          const testCells = [{ x: lx, y: ly }, ...a.cells];
-          const testSet = new Set(testCells.map(c => c.x + ',' + c.y));
-          
-          if (verifyRaycast(end, a.headDir, testSet)) {
-            a.cells = testCells;
-            leftovers.delete(key);
-            mergedAny = true;
-            break;
-          }
-        }
-      }
-      if (!leftovers.has(key)) break;
-    }
-  }
-
-  // 5. Post-processing: steal tails of long arrows (cycle-safe: no head modification)
-  if (leftovers.size > 0) {
-    for (const key of leftovers) {
-      const [lx, ly] = key.split(',').map(Number);
-      for (const d of DIRS) {
-        const sx = lx + DIR_DX[d];
-        const sy = ly + DIR_DY[d];
-        const skey = sx + ',' + sy;
-        
-        const arrowToStealFrom = arrows.find(a => {
-          return a.cells.length >= 3 && a.cells[0].x === sx && a.cells[0].y === sy;
-        });
-        
-        if (arrowToStealFrom) {
-          const oppDir = DIRS[(DIRS.indexOf(d) + 2) % 4];
-          const testSet = new Set([skey, key]);
-          if (verifyRaycast({ x: lx, y: ly }, oppDir, testSet)) {
-            arrowToStealFrom.cells.shift(); // remove tail from original
-            arrows.push({
-              cells: [{ x: sx, y: sy }, { x: lx, y: ly }],
-              headDir: oppDir,
-              active: true
-            });
-            leftovers.delete(key);
-            break;
-          }
-        }
-      }
-    }
-  }
-
+  const arrows = generateFullyPackedArrows(grid, shapeType, customMask, rng, minLen, maxLen);
+  ensureSolvable(arrows, grid, rng);
   return { grid, arrows, seed: numericSeed };
 }
 
@@ -1136,62 +1669,44 @@ const TUTORIAL_LEVELS = [
 ];
 
 function getDifficulty(lvl) {
-  // Zen Mode (Levels 1 - 20) — Clubbed Zen + Pathfinder
+  // --- Chapter 1: Pathfinder (Levels 1 - 20) ---
+  // Lvl 1-5: Zen difficulty (very simple to simple)
+  if (lvl <= 5) {
+    return { grid: 5, nMin: 2, nMax: 3, bends: 0, depth: 1 };
+  }
+  // Lvl 6-10: Pathfinder difficulty (medium)
   if (lvl <= 10) {
-    if (lvl <= 7) return { grid: 5, nMin: 2, nMax: 3, bends: 0, depth: 1 };
-    return { grid: 5, nMin: 3, nMax: 4, bends: 0, depth: 2 };
+    return { grid: 7, nMin: 4, nMax: 5, bends: 1, depth: 2 };
   }
+  // Lvl 11-20: Grandmaster difficulty (hard)
   if (lvl <= 20) {
-    if (lvl <= 15) return { grid: 6, nMin: 3, nMax: 5, bends: 0, depth: 2 };
-    if (lvl <= 18) return { grid: 7, nMin: 4, nMax: 5, bends: 1, depth: 2 };
-    return { grid: 8, nMin: 4, nMax: 6, bends: 1, depth: 2 };
-  }
-  
-  // Pathfinder Mode (Levels 21 - 40) — Takes over old Grandmaster difficulty
-  if (lvl <= 30) {
-    if (lvl <= 25) return { grid: 9, nMin: 6, nMax: 8, bends: 1, depth: 3 };
-    return { grid: 9, nMin: 7, nMax: 9, bends: 2, depth: 3 };
-  }
-  if (lvl <= 40) {
-    if (lvl <= 35) return { grid: 10, nMin: 8, nMax: 10, bends: 2, depth: 3 };
+    if (lvl <= 15) return { grid: 9, nMin: 7, nMax: 9, bends: 2, depth: 3 };
     return { grid: 10, nMin: 9, nMax: 11, bends: 2, depth: 4 };
   }
-  
-  // Grandmaster Mode (Levels 41 - 80) — 40 levels
-  // Levels 41 - 60 (grid 11-12, 2-3 bends, complex paths)
+
+  // --- Chapter 2: God Mode (Levels 21 - 60) ---
   if (lvl <= 60) {
-    if (lvl <= 50) {
-      if (lvl <= 45) return { grid: 11, nMin: 10, nMax: 12, bends: 2, depth: 3 };
-      return { grid: 11, nMin: 11, nMax: 13, bends: 2, depth: 4 };
-    }
-    if (lvl <= 55) return { grid: 12, nMin: 12, nMax: 14, bends: 3, depth: 4 };
-    return { grid: 12, nMin: 13, nMax: 16, bends: 3, depth: 5 };
+    if (lvl <= 30) return { grid: 13, nMin: 18, nMax: 22, bends: 3, depth: 4 };
+    if (lvl <= 40) return { grid: 13, nMin: 20, nMax: 24, bends: 3, depth: 5 };
+    if (lvl <= 50) return { grid: 14, nMin: 22, nMax: 28, bends: 4, depth: 5 };
+    return { grid: 14, nMin: 25, nMax: 32, bends: 4, depth: 6 };
   }
-  // Levels 61 - 80 (new grid 12-13, 2-3 bends, higher complexity, in-between GM and God)
-  if (lvl <= 70) {
-    if (lvl <= 65) return { grid: 12, nMin: 14, nMax: 17, bends: 2, depth: 4 };
-    return { grid: 12, nMin: 15, nMax: 18, bends: 3, depth: 4 };
+
+  // --- Chapter 3: Shape Odyssey (Levels 61 - 160) ---
+  // Grid size goes from 20x20 up to 35x35. Arrow count increases.
+  if (lvl <= 80) {
+    return { grid: 20, nMin: 12, nMax: 16, bends: 2, depth: 4 };
   }
-  if (lvl <= 75) return { grid: 13, nMin: 16, nMax: 19, bends: 3, depth: 4 };
-  return { grid: 13, nMin: 17, nMax: 21, bends: 3, depth: 5 };
-  
-  // God Mode (Levels 81 - 120) — 40 levels
-  // Levels 81 - 100 (grid 13-14, 3-4 bends)
   if (lvl <= 100) {
-    if (lvl <= 90) {
-      if (lvl <= 85) return { grid: 13, nMin: 18, nMax: 22, bends: 3, depth: 4 };
-      return { grid: 13, nMin: 19, nMax: 24, bends: 3, depth: 5 };
-    }
-    if (lvl <= 95) return { grid: 14, nMin: 20, nMax: 24, bends: 4, depth: 5 };
-    return { grid: 14, nMin: 21, nMax: 26, bends: 4, depth: 6 };
+    return { grid: 24, nMin: 16, nMax: 20, bends: 3, depth: 4 };
   }
-  // Levels 101 - 120 (insane grid 14-15, 4-5 bends, next notch up)
-  if (lvl <= 110) {
-    if (lvl <= 105) return { grid: 14, nMin: 22, nMax: 28, bends: 4, depth: 6 };
-    return { grid: 14, nMin: 24, nMax: 30, bends: 5, depth: 6 };
+  if (lvl <= 120) {
+    return { grid: 28, nMin: 20, nMax: 25, bends: 3, depth: 5 };
   }
-  if (lvl <= 115) return { grid: 15, nMin: 26, nMax: 32, bends: 5, depth: 6 };
-  return { grid: 15, nMin: 28, nMax: 35, bends: 5, depth: 7 };
+  if (lvl <= 140) {
+    return { grid: 32, nMin: 24, nMax: 30, bends: 4, depth: 5 };
+  }
+  return { grid: 35, nMin: 28, nMax: 35, bends: 4, depth: 6 };
 }
 
 const DIR_DX = { up:0, down:0, left:-1, right:1 };
@@ -1267,6 +1782,13 @@ function chainDepth(arrows) {
 function isInShape(x, y, grid, shapeType, customMask) {
   if (shapeType === 'square' || !shapeType) return true;
   
+  if (isEmojiShape(shapeType)) {
+    const mask = getEmojiMask(shapeType);
+    const srcX = Math.floor((x / grid) * 16);
+    const srcY = Math.floor((y / grid) * 16);
+    return mask.has(srcX + ',' + srcY);
+  }
+
   if (shapeType === 'drawn') {
     const maskGridSize = G.customDrawnGridSize || 16;
     const srcX = Math.floor((x / grid) * maskGridSize);
@@ -1397,49 +1919,117 @@ function makeArrow(grid, maxBends, occupied, rng, shapeType, customMask) {
   return null;
 }
 
+const SHAPED_LEVEL_EMOJIS = [
+  '❤️', '🦋', '👾', '⚔️', '⭐', '🐱', '👑', '🌸', '👻', '🍎', '🐟', '🌙',
+  '🧸', '🦁', '🦉', '🐝', '🦖', '🐙', '🐸', '🐵', '🐼', '🦊', '🐨', '🐯',
+  '🚗', '🚀', '✈️', '⛵', '🚁', '🚂', '🚲', '🛸',
+  '🍦', '🍩', '🍕', '🍔', '🍉', '🍓', '🍍', '🍒', '🥑', '🥕', '🍪', '🎂',
+  '⚽', '🏆', '🎮', '🎸', '🎨', '🧩', '🎲', '🎭',
+  '💎', '🔑', '🎁', '🎈', '🔔', '🍀', '🔥', '⚡', '💧', '❄️', '🌈', '☀️',
+  '🏠', '🏰', '🌲', '🌵', '🌴', '🍁', '🍄', '🐚',
+  '🎩', '🕶️', '🎓', '🎒', '🛡️', '🏹', '🔮', '🧪',
+  '⚓', '🧭', '🎡', '⛺', '🌋', '🏖️', '🌌', '🌠',
+  '👽', '🤖', '🎃', '🎅', '🦄', '🐲', '🧜', '🧙',
+  '🦓', '🦍', '🦩', '🦚'
+];
+
+const emojiMaskCache = {};
+
+function getEmojiMask(emoji) {
+  if (emojiMaskCache[emoji]) return emojiMaskCache[emoji];
+
+  const size = 16;
+  const mask = new Set();
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, size / 2, size / 2 + 0.5);
+
+    const imgData = ctx.getImageData(0, 0, size, size).data;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const alpha = imgData[(y * size + x) * 4 + 3];
+        if (alpha > 40) {
+          mask.add(x + ',' + y);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error generating emoji mask, falling back to circle:", e);
+  }
+
+  // Fallback if mask is empty
+  if (mask.size === 0) {
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = x - 7.5;
+        const dy = y - 7.5;
+        if (dx*dx + dy*dy <= 40) {
+          mask.add(x + ',' + y);
+        }
+      }
+    }
+  }
+
+  emojiMaskCache[emoji] = mask;
+  return mask;
+}
+
+function isEmojiShape(shapeType) {
+  const standardShapes = ['square', 'heart', 'star', 'invader', 'sword', 'cat', 'crown', 'flower', 'ghost', 'apple', 'fish', 'moon', 'ring', 'diamond', 'pyramid', 'drawn'];
+  return !standardShapes.includes(shapeType);
+}
+
+function getLevelShape(levelNum) {
+  if (levelNum <= 20) {
+    if (levelNum <= 10) return 'square';
+    if (levelNum <= 15) return 'heart';
+    return 'star';
+  } else if (levelNum <= 60) {
+    return 'square';
+  } else {
+    const idx = (levelNum - 61) % SHAPED_LEVEL_EMOJIS.length;
+    return SHAPED_LEVEL_EMOJIS[idx];
+  }
+}
+
 function generateLevel(levelNum) {
   if (levelNum <= TUTORIAL_LEVELS.length) {
     return JSON.parse(JSON.stringify(TUTORIAL_LEVELS[levelNum - 1]));
   }
 
   const d = getDifficulty(levelNum);
-  const numArrows = d.nMin + Math.floor(mulberry32(levelNum * 31)() * (d.nMax - d.nMin + 1));
   const rng = mulberry32(levelNum * 7919 + 1337);
+  const shapeType = getLevelShape(levelNum);
 
-  for (let major = 0; major < 80; major++) {
-    const arrows = [];
-    const occupied = new Set();
-    let success = true;
-
-    for (let i = 0; i < numArrows; i++) {
-      let placed = false;
-      for (let retry = 0; retry < 40; retry++) {
-        const arrow = makeArrow(d.grid, d.bends, occupied, rng);
-        if (!arrow) continue;
-
-        arrows.push(arrow);
-        if (isDAG(arrows)) {
-          for (const c of arrow.cells) occupied.add(c.x+','+c.y);
-          placed = true;
-          break;
-        }
-        arrows.pop();
-      }
-      if (!placed) { success = false; break; }
-    }
-
-    if (success && arrows.length === numArrows) {
-      const depth = chainDepth(arrows);
-      if (depth >= d.depth || major > 40) {
-        return { grid: d.grid, arrows };
-      }
-    }
+  let minLen = 2;
+  let maxLen = 4;
+  if (levelNum <= 5) {
+    minLen = 2; maxLen = 4;
+  } else if (levelNum <= 10) {
+    minLen = 2; maxLen = 6;
+  } else if (levelNum <= 20) {
+    minLen = 3; maxLen = 8;
+  } else if (levelNum <= 60) {
+    minLen = 4; maxLen = 12;
+  } else {
+    // Shape Odyssey
+    if (d.grid <= 20) { minLen = 4; maxLen = 14; }
+    else if (d.grid <= 24) { minLen = 5; maxLen = 18; }
+    else if (d.grid <= 28) { minLen = 6; maxLen = 22; }
+    else { minLen = 8; maxLen = 28; }
   }
 
-  return { grid: 6, arrows: [
-    { cells: [{x:2,y:4},{x:2,y:3},{x:2,y:2}], headDir: 'up' },
-    { cells: [{x:4,y:4},{x:4,y:3},{x:4,y:2}], headDir: 'up' },
-  ]};
+  const arrows = generateFullyPackedArrows(d.grid, shapeType, null, rng, minLen, maxLen);
+  ensureSolvable(arrows, d.grid, rng);
+  return { grid: d.grid, arrows };
 }
 
 /* ============================================================
@@ -1470,7 +2060,7 @@ let G = {
   }
 };
 
-let activeChapter = 'zen'; // 'zen', 'pathfinder', 'grandmaster'
+let activeChapter = 'pathfinder'; // 'pathfinder', 'god', 'shaped'
 
 function saveStats() {
   localStorage.setItem('fta-stats-v2', JSON.stringify(G.stats));
@@ -1497,6 +2087,8 @@ function loadStats() {
 }
 
 let soundEnabled = (localStorage.getItem('fta-sound') !== 'false');
+let arrowColorMode = localStorage.getItem('fta-arrow-color') || 'direction';
+const directionColorMap = { up: '#00F2FE', down: '#FF2E93', left: '#2ED573', right: '#FF9F43' };
 
 const themesList = [
   { id: 'cyber', name: '🌌 Cyber' },
@@ -1530,6 +2122,39 @@ function renderThemeSelectors() {
   });
 }
 
+const arrowColorModes = [
+  { id: 'random', name: '🎨 Random' },
+  { id: 'direction', name: '🧭 By Direction' }
+];
+
+function renderArrowColorSelectors() {
+  const container = document.getElementById('arrow-color-selectors');
+  if (!container) return;
+  container.innerHTML = '';
+
+  arrowColorModes.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = `obtn ${m.id === arrowColorMode ? 'obtn-primary' : 'obtn-secondary'}`;
+    btn.style.width = 'auto';
+    btn.style.margin = '0';
+    btn.style.padding = '8px 14px';
+    btn.style.borderRadius = '10px';
+    btn.style.fontSize = '0.85rem';
+    btn.style.fontWeight = '700';
+    btn.textContent = m.name;
+    btn.onclick = () => {
+      arrowColorMode = m.id;
+      localStorage.setItem('fta-arrow-color', arrowColorMode);
+      renderArrowColorSelectors();
+      // Sync sandbox dropdown if it exists
+      const sel = document.getElementById('arrow-color-mode');
+      if (sel) sel.value = arrowColorMode;
+      render();
+    };
+    container.appendChild(btn);
+  });
+}
+
 function renderHomeLevels() {
   const list = document.getElementById('home-lvl-list');
   if (!list) return;
@@ -1537,15 +2162,12 @@ function renderHomeLevels() {
   
   let startLvl = 1;
   let endLvl = 20;
-  if (activeChapter === 'pathfinder') {
+  if (activeChapter === 'god') {
     startLvl = 21;
-    endLvl = 40;
-  } else if (activeChapter === 'grandmaster') {
-    startLvl = 41;
-    endLvl = 80;
-  } else if (activeChapter === 'god') {
-    startLvl = 81;
-    endLvl = 120;
+    endLvl = 60;
+  } else if (activeChapter === 'shaped') {
+    startLvl = 61;
+    endLvl = 160;
   }
   
   for (let i = startLvl; i <= endLvl; i++) {
@@ -1562,6 +2184,7 @@ function renderHomeLevels() {
     card.style.cursor = 'pointer';
     card.style.flexShrink = '0';
     card.style.transition = 'border-color 0.15s, transform 0.1s';
+    card.style.position = 'relative';
     
     const relIndex = i - startLvl + 1;
     const isLocked = !isLevelUnlocked(i);
@@ -1591,7 +2214,39 @@ function renderHomeLevels() {
         starsHtml = `<div style="display:flex; gap:1px; margin-top:2px; font-size:0.55rem; opacity:0;"><span style="color:#FFF200;">★</span><span>★</span><span>★</span></div>`;
       }
       
-      card.innerHTML = `<span style="font-size: 1.05rem; font-weight:800; color:var(--text-color);">${relIndex}</span>${starsHtml}`;
+      if (i >= 61) {
+        const emoji = getLevelShape(i);
+        card.innerHTML = `
+          <div style="font-size: 1.5rem; line-height: 1.1;">${emoji}</div>
+          <div style="font-size: 0.65rem; font-weight: 700; color: var(--text-color); margin-top: 1px;">Lvl ${relIndex}</div>
+          ${starsHtml}
+        `;
+      } else {
+        card.innerHTML = `<span style="font-size: 1.05rem; font-weight:800; color:var(--text-color);">${relIndex}</span>${starsHtml}`;
+      }
+      
+      if (completed.has(i)) {
+        card.innerHTML += `
+          <div style="
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #2ED573;
+            color: white;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: bold;
+            border: 1.5px solid var(--board-bg);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            pointer-events: none;
+          ">✓</div>
+        `;
+      }
       
       card.onclick = () => {
         document.getElementById('ov-home').classList.remove('show');
@@ -1608,8 +2263,8 @@ function renderHomeLevels() {
 
 function updateHomeStatsUI() {
   const clearedCount = Object.keys(G.stats.levelStars).filter(k => k.startsWith('level-')).length;
-  document.getElementById('stats-cleared').textContent = `${clearedCount} / 120`;
-  document.getElementById('stats-stars').textContent = `${G.stats.starsCollected} / 360`;
+  document.getElementById('stats-cleared').textContent = `${clearedCount} / 160`;
+  document.getElementById('stats-stars').textContent = `${G.stats.starsCollected} / 480`;
   document.getElementById('stats-perfects').textContent = `${G.stats.perfects}`;
   
   // Set active level in "Continue Campaign" button
@@ -1618,6 +2273,7 @@ function updateHomeStatsUI() {
   
   // Render visual theme selection buttons and level selector carousel
   renderThemeSelectors();
+  renderArrowColorSelectors();
   renderHomeLevels();
 }
 
@@ -1654,14 +2310,15 @@ loadStats();
 const completed = new Set(Object.keys(G.stats.levelStars).map(k => parseInt(k.replace('level-', ''), 10)));
 
 function isLevelUnlocked(num) {
-  if (num === 1 || num === 21 || num === 41 || num === 81) return true;
+  if (num >= 61 && num <= 160) return true; // Uncloak all shaped puzzles!
+  if (num === 1 || num === 21) return true;
   return completed.has(num - 1);
 }
 
 function getContinueCampaignLevel() {
   if (completed.size === 0) return 1;
   const maxCompleted = Math.max(...completed);
-  return Math.min(120, maxCompleted + 1);
+  return Math.min(160, maxCompleted + 1);
 }
 
 let highestUnlocked = getContinueCampaignLevel();
@@ -1693,7 +2350,7 @@ document.getElementById('btn-next').onclick       = () => {
   if (G.isCustom) {
     loadCustomLevel(G.customGrid, G.customComplexity, 'randomize');
   } else {
-    if (G.levelNum >= 120) {
+    if (G.levelNum >= 160) {
       openMenu();
     } else {
       loadLevel(G.levelNum + 1);
@@ -1732,28 +2389,24 @@ document.getElementById('btn-menu-home').onclick = () => {
 };
 
 // Chapter Selection Event Listeners
-document.getElementById('btn-chap-zen').onclick = () => setChapter('zen');
 document.getElementById('btn-chap-path').onclick = () => setChapter('pathfinder');
-document.getElementById('btn-chap-grand').onclick = () => setChapter('grandmaster');
 document.getElementById('btn-chap-god').onclick = () => setChapter('god');
+document.getElementById('btn-chap-shaped').onclick = () => setChapter('shaped');
 
-document.getElementById('btn-home-chap-zen').onclick = () => setHomeChapter('zen');
 document.getElementById('btn-home-chap-path').onclick = () => setHomeChapter('pathfinder');
-document.getElementById('btn-home-chap-grand').onclick = () => setHomeChapter('grandmaster');
 document.getElementById('btn-home-chap-god').onclick = () => setHomeChapter('god');
+document.getElementById('btn-home-chap-shaped').onclick = () => setHomeChapter('shaped');
 
 function setHomeChapter(chapter) {
   activeChapter = chapter;
-  document.getElementById('btn-home-chap-zen').classList.toggle('active', chapter === 'zen');
   document.getElementById('btn-home-chap-path').classList.toggle('active', chapter === 'pathfinder');
-  document.getElementById('btn-home-chap-grand').classList.toggle('active', chapter === 'grandmaster');
   document.getElementById('btn-home-chap-god').classList.toggle('active', chapter === 'god');
+  document.getElementById('btn-home-chap-shaped').classList.toggle('active', chapter === 'shaped');
   
   // Keep chapters level select tab in sync
-  document.getElementById('btn-chap-zen').classList.toggle('active', chapter === 'zen');
   document.getElementById('btn-chap-path').classList.toggle('active', chapter === 'pathfinder');
-  document.getElementById('btn-chap-grand').classList.toggle('active', chapter === 'grandmaster');
   document.getElementById('btn-chap-god').classList.toggle('active', chapter === 'god');
+  document.getElementById('btn-chap-shaped').classList.toggle('active', chapter === 'shaped');
   
   renderHomeLevels();
 }
@@ -1776,16 +2429,14 @@ if (toggleSoundBtn) {
 
 function setChapter(chapter) {
   activeChapter = chapter;
-  document.getElementById('btn-chap-zen').classList.toggle('active', chapter === 'zen');
   document.getElementById('btn-chap-path').classList.toggle('active', chapter === 'pathfinder');
-  document.getElementById('btn-chap-grand').classList.toggle('active', chapter === 'grandmaster');
   document.getElementById('btn-chap-god').classList.toggle('active', chapter === 'god');
+  document.getElementById('btn-chap-shaped').classList.toggle('active', chapter === 'shaped');
   
   // Sync home screen chapter buttons
-  document.getElementById('btn-home-chap-zen').classList.toggle('active', chapter === 'zen');
   document.getElementById('btn-home-chap-path').classList.toggle('active', chapter === 'pathfinder');
-  document.getElementById('btn-home-chap-grand').classList.toggle('active', chapter === 'grandmaster');
   document.getElementById('btn-home-chap-god').classList.toggle('active', chapter === 'god');
+  document.getElementById('btn-home-chap-shaped').classList.toggle('active', chapter === 'shaped');
   
   renderMenuLevels();
 }
@@ -1889,6 +2540,15 @@ customShapeSel.onchange = () => {
 
 customThemeSel.onchange = () => {
   applyTheme(customThemeSel.value);
+};
+
+// Arrow color mode dropdown
+const arrowColorSel = document.getElementById('arrow-color-mode');
+arrowColorSel.value = arrowColorMode;
+arrowColorSel.onchange = () => {
+  arrowColorMode = arrowColorSel.value;
+  localStorage.setItem('fta-arrow-color', arrowColorMode);
+  render();
 };
 
 function applyTheme(themeName) {
@@ -2145,15 +2805,12 @@ board.addEventListener('pointerup', (e) => {
     board.releasePointerCapture(e.pointerId);
     isPanning = false;
     
-    // If it was a tap instead of a drag pan, trigger the arrow click manually
+    // If it was a tap instead of a drag pan, find arrow by grid cell
     if (!G.hasDragged) {
-      const target = document.elementFromPoint(e.clientX, e.clientY);
-      if (target) {
-        const arrowEl = target.closest('.arrow');
-        if (arrowEl) {
-          const idx = parseInt(arrowEl.dataset.idx, 10);
-          tapArrow(idx);
-        }
+      const arrowIdx = getArrowAtPoint(e.clientX, e.clientY);
+      if (arrowIdx >= 0) {
+        tapArrow(arrowIdx);
+        G.hasDragged = true; // prevent boardContent click from double-firing
       }
     }
   }
@@ -2164,6 +2821,44 @@ board.addEventListener('pointercancel', (e) => {
     board.releasePointerCapture(e.pointerId);
     isPanning = false;
   }
+});
+
+/* ============================================================
+   COORDINATE-BASED CLICK DETECTION
+   ============================================================ */
+// Convert screen click position to the grid cell (x,y), then find which arrow owns it.
+// This avoids SVG overflow/z-index issues that caused wrong-arrow clicks.
+function getArrowAtPoint(clientX, clientY) {
+  const bcRect = boardContent.getBoundingClientRect();
+  // Account for CSS transform (zoom/pan)
+  const scaleX = boardContent.offsetWidth / bcRect.width;
+  const scaleY = boardContent.offsetHeight / bcRect.height;
+  const relX = (clientX - bcRect.left) * scaleX;
+  const relY = (clientY - bcRect.top) * scaleY;
+
+  const cellW = boardContent.offsetWidth / G.gridSize;
+  const cellH = boardContent.offsetHeight / G.gridSize;
+  const gx = Math.floor(relX / cellW);
+  const gy = Math.floor(relY / cellH);
+
+  if (gx < 0 || gx >= G.gridSize || gy < 0 || gy >= G.gridSize) return -1;
+
+  // Find which active arrow contains this cell
+  for (let i = 0; i < G.arrows.length; i++) {
+    const a = G.arrows[i];
+    if (!a.active) continue;
+    for (const c of a.cells) {
+      if (c.x === gx && c.y === gy) return i;
+    }
+  }
+  return -1;
+}
+
+// Board-level click handler (for non-pointer-capture clicks)
+boardContent.addEventListener('click', (e) => {
+  if (G.hasDragged) return;
+  const arrowIdx = getArrowAtPoint(e.clientX, e.clientY);
+  if (arrowIdx >= 0) tapArrow(arrowIdx);
 });
 
 /* ============================================================
@@ -2182,12 +2877,44 @@ function render() {
   wrap.style.display = 'flex';
   board.style.margin = '';
 
-  // Subtle dot grid centered in cells on board-content
-  boardContent.style.backgroundImage = 'radial-gradient(var(--dot-color) 2.5px, transparent 2.5px)';
-  boardContent.style.backgroundSize = `calc(100% / ${G.gridSize}) calc(100% / ${G.gridSize})`;
-  boardContent.style.backgroundPosition = '0 0';
+  boardContent.style.backgroundImage = 'none';
   
   const sz = 100 / G.gridSize; // cell size in %
+
+  // Render visual shape silhouette background cells
+  const shapeType = G.isCustom ? G.customShape : getLevelShape(G.levelNum);
+  const isCustomDrawn = G.isCustom && G.customShape === 'drawn';
+  const maskToUse = isCustomDrawn ? G.customDrawnMask : null;
+
+  for (let y = 0; y < G.gridSize; y++) {
+    for (let x = 0; x < G.gridSize; x++) {
+      if (isInShape(x, y, G.gridSize, shapeType, maskToUse)) {
+        const bgCell = document.createElement('div');
+        bgCell.className = 'grid-bg-cell';
+        bgCell.style.left = (x * sz) + '%';
+        bgCell.style.top = (y * sz) + '%';
+        bgCell.style.width = sz + '%';
+        bgCell.style.height = sz + '%';
+        
+        // Detect outer borders of the shape silhouette
+        const hasTopNeighbor = y > 0 && isInShape(x, y - 1, G.gridSize, shapeType, maskToUse);
+        const hasBottomNeighbor = y < G.gridSize - 1 && isInShape(x, y + 1, G.gridSize, shapeType, maskToUse);
+        const hasLeftNeighbor = x > 0 && isInShape(x - 1, y, G.gridSize, shapeType, maskToUse);
+        const hasRightNeighbor = x < G.gridSize - 1 && isInShape(x + 1, y, G.gridSize, shapeType, maskToUse);
+
+        // Apply a distinct solid border on the outer edges
+        if (!hasTopNeighbor) bgCell.style.borderTop = '2.2px solid var(--accent-color)';
+        if (!hasBottomNeighbor) bgCell.style.borderBottom = '2.2px solid var(--accent-color)';
+        if (!hasLeftNeighbor) bgCell.style.borderLeft = '2.2px solid var(--accent-color)';
+        if (!hasRightNeighbor) bgCell.style.borderRight = '2.2px solid var(--accent-color)';
+        
+        // Add a subtle box shadow
+        bgCell.style.boxShadow = 'inset 0 0 4px rgba(108, 99, 255, 0.05)';
+        
+        boardContent.appendChild(bgCell);
+      }
+    }
+  }
   
   // Reverted arrow sizing to prevent them from looking huge
   const sw = Math.max(3.5, 3.5 * (G.gridSize / 6) * 0.65);
@@ -2243,15 +2970,16 @@ function render() {
       case 'right': headPoly = `${hp.sx+HS},${hp.sy} ${hp.sx-HS*.35},${hp.sy-HS*.7} ${hp.sx-HS*.35},${hp.sy+HS*.7}`; break;
     }
 
+    let arrowColor = a.color || 'var(--arrow-color)';
+    if (arrowColorMode === 'direction') arrowColor = directionColorMap[a.headDir] || arrowColor;
+
     el.innerHTML = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
       <polyline class="hit-area" points="${hitStr}" style="stroke-width: ${sw * 6.5};" />
-      <polyline class="shaft" points="${polyStr}" style="stroke-width: ${sw};" />
-      <polygon class="head" points="${headPoly}"/>
+      <polyline class="shaft" points="${polyStr}" style="stroke-width: ${sw}; stroke: ${arrowColor}; filter: drop-shadow(0 0 5px ${arrowColor});" />
+      <polygon class="head" points="${headPoly}" style="fill: ${arrowColor}; filter: drop-shadow(0 0 5px ${arrowColor});" />
     </svg>`;
 
-    el.addEventListener('click', () => {
-      if (!G.hasDragged) tapArrow(idx);
-    });
+    // Click handled at board level (see boardContent click handler below)
     boardContent.appendChild(el);
   });
 }
@@ -2833,26 +3561,40 @@ function renderHearts() {
 function loadLevel(num) {
   G.isCustom = false;
   G.levelNum = num;
-  const lvl = generateLevel(num);
-  G.gridSize = lvl.grid;
-  G.arrows = lvl.arrows.map(a => ({ cells: a.cells.map(c=>({...c})), headDir: a.headDir, active: true }));
-  G.hearts = G.maxHearts;
-  G.history = [];
-  G.animating = false;
-  document.getElementById('btn-undo').disabled = true;
 
-  zoomLevel = 1.0;
-  tx = 0;
-  ty = 0;
-  updateZoom();
-
+  // Show loader & clear board immediately
+  const loader = document.getElementById('board-loader');
+  loader.classList.remove('hidden');
+  boardContent.style.opacity = '0';
+  boardContent.innerHTML = '';
   levelLbl.textContent = 'Level ' + num;
   hintEl.textContent = num <= 3 ? 'Tap an arrow to free it' : 'Free all arrows';
-  renderHearts();
-  render();
   ovWin.classList.remove('show');
   ovFail.classList.remove('show');
   ovMenu.classList.remove('show');
+
+  // Defer heavy generation so spinner renders first
+  setTimeout(() => {
+    const lvl = generateLevel(num);
+    G.gridSize = lvl.grid;
+    G.arrows = lvl.arrows.map(a => ({ cells: a.cells.map(c=>({...c})), headDir: a.headDir, color: a.color, active: true }));
+    G.hearts = G.maxHearts;
+    G.history = [];
+    G.animating = false;
+    document.getElementById('btn-undo').disabled = true;
+
+    zoomLevel = 1.0;
+    tx = 0;
+    ty = 0;
+    updateZoom();
+
+    renderHearts();
+    render();
+
+    // Fade in board, hide loader
+    loader.classList.add('hidden');
+    boardContent.style.opacity = '1';
+  }, 0);
 }
 
 function loadCustomLevel(grid, complexity, seedVal) {
@@ -2860,36 +3602,49 @@ function loadCustomLevel(grid, complexity, seedVal) {
   G.customGrid = grid;
   G.customComplexity = complexity;
 
-  const lvl = generateCustomLevel(grid, complexity, seedVal, G.customShape, G.customDrawnMask);
-  G.customSeed = lvl.seed;
-  G.gridSize = lvl.grid;
-  G.arrows = lvl.arrows.map(a => ({ cells: a.cells.map(c=>({...c})), headDir: a.headDir, active: true }));
-  G.hearts = G.maxHearts;
-  G.history = [];
-  G.animating = false;
-  document.getElementById('btn-undo').disabled = true;
-
-  zoomLevel = 1.0;
-  tx = 0;
-  ty = 0;
-  updateZoom();
-
-  let shapeLabel = G.customShape;
-  if (SILHOUETTES[G.customShape]) {
-    shapeLabel = SILHOUETTES[G.customShape].name.split(' ').slice(1).join(' '); // Trim emojis
-  } else if (G.customShape === 'drawn') {
-    shapeLabel = 'Custom Painted';
-  } else {
-    shapeLabel = G.customShape.charAt(0).toUpperCase() + G.customShape.slice(1);
-  }
-  
-  levelLbl.textContent = 'Custom • ' + shapeLabel + ' • ' + grid + 'x' + grid + ' • #' + lvl.seed;
-  hintEl.textContent = 'Free all arrows';
-  renderHearts();
-  render();
+  // Show loader & clear board immediately
+  const loader = document.getElementById('board-loader');
+  loader.classList.remove('hidden');
+  boardContent.style.opacity = '0';
+  boardContent.innerHTML = '';
   ovWin.classList.remove('show');
   ovFail.classList.remove('show');
   ovMenu.classList.remove('show');
+
+  // Defer heavy generation so spinner renders first
+  setTimeout(() => {
+    const lvl = generateCustomLevel(grid, complexity, seedVal, G.customShape, G.customDrawnMask);
+    G.customSeed = lvl.seed;
+    G.gridSize = lvl.grid;
+    G.arrows = lvl.arrows.map(a => ({ cells: a.cells.map(c=>({...c})), headDir: a.headDir, color: a.color, active: true }));
+    G.hearts = G.maxHearts;
+    G.history = [];
+    G.animating = false;
+    document.getElementById('btn-undo').disabled = true;
+
+    zoomLevel = 1.0;
+    tx = 0;
+    ty = 0;
+    updateZoom();
+
+    let shapeLabel = G.customShape;
+    if (SILHOUETTES[G.customShape]) {
+      shapeLabel = SILHOUETTES[G.customShape].name.split(' ').slice(1).join(' ');
+    } else if (G.customShape === 'drawn') {
+      shapeLabel = 'Custom Painted';
+    } else {
+      shapeLabel = G.customShape.charAt(0).toUpperCase() + G.customShape.slice(1);
+    }
+
+    levelLbl.textContent = 'Custom • ' + shapeLabel + ' • ' + grid + 'x' + grid + ' • #' + lvl.seed;
+    hintEl.textContent = 'Free all arrows';
+    renderHearts();
+    render();
+
+    // Fade in board, hide loader
+    loader.classList.add('hidden');
+    boardContent.style.opacity = '1';
+  }, 0);
 }
 
 function renderMenuLevels() {
@@ -2897,15 +3652,12 @@ function renderMenuLevels() {
   
   let startLvl = 1;
   let endLvl = 20;
-  if (activeChapter === 'pathfinder') {
+  if (activeChapter === 'god') {
     startLvl = 21;
-    endLvl = 40;
-  } else if (activeChapter === 'grandmaster') {
-    startLvl = 41;
-    endLvl = 80;
-  } else if (activeChapter === 'god') {
-    startLvl = 81;
-    endLvl = 120;
+    endLvl = 60;
+  } else if (activeChapter === 'shaped') {
+    startLvl = 61;
+    endLvl = 160;
   }
   
   for (let i = startLvl; i <= endLvl; i++) {
@@ -2918,6 +3670,7 @@ function renderMenuLevels() {
     btn.style.padding = '4px 2px';
     btn.style.height = 'auto';
     btn.style.aspectRatio = '1/1';
+    btn.style.position = 'relative';
     
     const relIndex = i - startLvl + 1;
     const isLocked = !isLevelUnlocked(i);
@@ -2946,7 +3699,40 @@ function renderMenuLevels() {
         starsHtml = `<div style="display:flex; gap:1px; margin-top:2px; font-size:0.6rem; opacity:0;"><span style="color:#FFF200;">★</span><span>★</span><span>★</span></div>`;
       }
       
-      btn.innerHTML = `<span style="font-size: 0.95rem; font-weight:700;">${relIndex}</span>${starsHtml}`;
+      if (i >= 61) {
+        const emoji = getLevelShape(i);
+        btn.innerHTML = `
+          <div style="font-size: 1.25rem; line-height: 1.1;">${emoji}</div>
+          <div style="font-size: 0.6rem; font-weight: 700; color: var(--text-color); margin-top: 1px;">Lvl ${relIndex}</div>
+          ${starsHtml}
+        `;
+      } else {
+        btn.innerHTML = `<span style="font-size: 0.95rem; font-weight:700;">${relIndex}</span>${starsHtml}`;
+      }
+      
+      if (completed.has(i)) {
+        btn.innerHTML += `
+          <div style="
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #2ED573;
+            color: white;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            font-weight: bold;
+            border: 1px solid var(--board-bg);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            pointer-events: none;
+          ">✓</div>
+        `;
+      }
+      
       btn.onclick = () => {
         loadLevel(i);
       };
@@ -2957,16 +3743,14 @@ function renderMenuLevels() {
 
 function openMenu() {
   if (!G.isCustom) {
-    if (G.levelNum <= 20) activeChapter = 'zen';
-    else if (G.levelNum <= 40) activeChapter = 'pathfinder';
-    else if (G.levelNum <= 80) activeChapter = 'grandmaster';
-    else activeChapter = 'god';
+    if (G.levelNum <= 20) activeChapter = 'pathfinder';
+    else if (G.levelNum <= 60) activeChapter = 'god';
+    else activeChapter = 'shaped';
   } else {
     const activeLvl = getContinueCampaignLevel();
-    if (activeLvl <= 20) activeChapter = 'zen';
-    else if (activeLvl <= 40) activeChapter = 'pathfinder';
-    else if (activeLvl <= 80) activeChapter = 'grandmaster';
-    else activeChapter = 'god';
+    if (activeLvl <= 20) activeChapter = 'pathfinder';
+    else if (activeLvl <= 60) activeChapter = 'god';
+    else activeChapter = 'shaped';
   }
   
   tabCampaign.classList.add('active');
