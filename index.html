@@ -3188,12 +3188,64 @@ function removeArrowFromBoard(idx) {
   if (el) el.remove();
 }
 
+function getPointAt(P, d) {
+  const segmentLen = 100;
+  if (d <= 0) return { sx: P[0].sx, sy: P[0].sy };
+  const maxDist = (P.length - 1) * segmentLen;
+  if (d >= maxDist) return { sx: P[P.length - 1].sx, sy: P[P.length - 1].sy };
+
+  const idx = Math.floor(d / segmentLen);
+  const frac = (d % segmentLen) / segmentLen;
+  const p0 = P[idx];
+  const p1 = P[idx + 1];
+  return {
+    sx: p0.sx + (p1.sx - p0.sx) * frac,
+    sy: p0.sy + (p1.sy - p0.sy) * frac
+  };
+}
+
+function sampleSubPath(P, dStart, dEnd) {
+  const segmentLen = 100;
+  const result = [];
+
+  result.push(getPointAt(P, dStart));
+
+  for (let i = 1; i < P.length - 1; i++) {
+    const dVert = i * segmentLen;
+    if (dVert > dStart && dVert < dEnd) {
+      result.push({ sx: P[i].sx, sy: P[i].sy });
+    }
+  }
+
+  result.push(getPointAt(P, dEnd));
+  return result;
+}
+
 function render() {
   boardContent.innerHTML = '';
   boardContent.style.backgroundImage = 'none';
   renderGrid();
   renderArrows();
+
+  // Create permanent animation overlay SVG
+  const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  overlay.id = 'arrow-animation-overlay';
+  overlay.setAttribute('style', 'position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:10;display:none;will-change:transform;');
+  overlay.setAttribute('viewBox', `0 0 ${G.gridSize * 100} ${G.gridSize * 100}`);
+
+  const shaft = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  shaft.id = 'animation-shaft';
+  shaft.setAttribute('class', 'shaft');
+
+  const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  head.id = 'animation-head';
+  head.setAttribute('class', 'head');
+
+  overlay.appendChild(shaft);
+  overlay.appendChild(head);
+  boardContent.appendChild(overlay);
 }
+
 
 /* ============================================================
    GAME LOGIC & EFFECTS
@@ -3302,19 +3354,41 @@ function animateBlockedBounce(idx) {
   if (!el) return;
 
   G.animating = true;
-  el.classList.add('blocked');
+  
+  // Hide the original arrow element
+  el.style.opacity = '0';
   el.style.pointerEvents = 'none';
-  el.style.willChange = 'transform';
+
+  // Get permanent overlay elements
+  const overlay = document.getElementById('arrow-animation-overlay');
+  const shaft = document.getElementById('animation-shaft');
+  const head = document.getElementById('animation-head');
+  if (!overlay || !shaft || !head) return;
 
   const dx = DIR_DX[a.headDir];
   const dy = DIR_DY[a.headDir];
   const lastCell = a.cells[a.cells.length - 1];
 
   const blockCells = Math.min(G.gridSize, getBlockingDistance(idx));
-  
-  const rect = boardContent.getBoundingClientRect();
-  const cellPx = rect.width / G.gridSize;
-  const peakDist = Math.max(0, (blockCells - 1) * cellPx + 35 * (cellPx / 100));
+  const D_peak = Math.max(0, (blockCells - 1) * 100 + 35);
+
+  // Set overlay styles for blocked/red bounce
+  const sw = Math.max(3.5, 3.5 * (G.gridSize / 6) * 0.65);
+  const HS = Math.max(16, 16 * (G.gridSize / 6) * 0.6);
+
+  shaft.setAttribute('style', `stroke-width:${sw}; stroke-linecap:round; stroke-linejoin:round; fill:none; stroke:#FF2E93;`);
+  head.setAttribute('style', `fill:#FF2E93;`);
+
+  // Construct full trajectory points
+  const pts = a.cells.map(c => ({ sx: c.x * 100 + 50, sy: c.y * 100 + 50 }));
+  for (let i = 1; i <= blockCells; i++) {
+    pts.push({ sx: (lastCell.x + dx * i) * 100 + 50, sy: (lastCell.y + dy * i) * 100 + 50 });
+  }
+
+  const segmentLen = 100;
+  const arrowLen = (a.cells.length - 1) * segmentLen;
+
+  overlay.style.display = 'block';
 
   const startTime = performance.now();
   const duration = 400; // ms
@@ -3333,17 +3407,43 @@ function animateBlockedBounce(idx) {
       playedEffects = true;
     }
 
-    const slideDist = easedP * peakDist;
-    const tx = slideDist * dx;
-    const ty = slideDist * dy;
-    el.style.transform = `translate(${tx}px, ${ty}px)`;
+    const slideDist = easedP * D_peak;
+    const dStart = slideDist;
+    const dEnd = dStart + arrowLen;
+
+    const sub = sampleSubPath(pts, dStart, dEnd);
+
+    if (sub.length >= 2) {
+      const polyStr = sub.map(pt => pt.sx + ',' + pt.sy).join(' ');
+      shaft.setAttribute('points', polyStr);
+
+      const pLast = sub[sub.length - 1];
+      const pPrev = sub[sub.length - 2];
+      const dist = Math.hypot(pLast.sx - pPrev.sx, pLast.sy - pPrev.sy);
+      if (dist > 0) {
+        const ux = (pLast.sx - pPrev.sx) / dist;
+        const uy = (pLast.sy - pPrev.sy) / dist;
+        const vx = -uy, vy = ux;
+
+        const tipX = pLast.sx;
+        const tipY = pLast.sy;
+        const leftX = tipX - HS * ux + HS * 0.45 * vx;
+        const leftY = tipY - HS * uy + HS * 0.45 * vy;
+        const rightX = tipX - HS * ux - HS * 0.45 * vx;
+        const rightY = tipY - HS * uy - HS * 0.45 * vy;
+
+        head.setAttribute('points', `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`);
+      }
+    }
 
     if (p < 1) {
       requestAnimationFrame(frame);
     } else {
-      el.style.transform = '';
-      el.style.willChange = '';
-      el.classList.remove('blocked');
+      overlay.style.display = 'none';
+      shaft.removeAttribute('points');
+      head.removeAttribute('points');
+
+      el.style.opacity = '';
       el.style.pointerEvents = '';
       
       G.hearts--;
@@ -3401,19 +3501,39 @@ function tapArrow(idx) {
   showGhost(a);
   showRipple(a);
 
-  // Animate the existing arrow element using CSS transforms
-  el.classList.add('flying-green');
+  // Hide the original arrow element
+  el.style.opacity = '0';
   el.style.pointerEvents = 'none';
-  el.style.willChange = 'transform, opacity';
+
+  // Get permanent overlay elements
+  const overlay = document.getElementById('arrow-animation-overlay');
+  const shaft = document.getElementById('animation-shaft');
+  const head = document.getElementById('animation-head');
+  if (!overlay || !shaft || !head) return;
 
   const dx = DIR_DX[a.headDir];
   const dy = DIR_DY[a.headDir];
   const lastCell = a.cells[a.cells.length - 1];
 
-  const rect = boardContent.getBoundingClientRect();
-  const cellPx = rect.width / G.gridSize;
+  // Configure overlay colors
+  const sw = Math.max(3.5, 3.5 * (G.gridSize / 6) * 0.65);
+  const HS = Math.max(16, 16 * (G.gridSize / 6) * 0.6);
+
+  shaft.setAttribute('style', `stroke-width:${sw}; stroke-linecap:round; stroke-linejoin:round; fill:none; stroke:#2ED573;`);
+  head.setAttribute('style', `fill:#2ED573;`);
+
+  // Construct full trajectory points
+  const pts = a.cells.map(c => ({ sx: c.x * 100 + 50, sy: c.y * 100 + 50 }));
   const totalFlyDist = G.gridSize + 3;
-  const flyDistance = totalFlyDist * cellPx;
+  for (let i = 1; i <= totalFlyDist; i++) {
+    pts.push({ sx: (lastCell.x + dx * i) * 100 + 50, sy: (lastCell.y + dy * i) * 100 + 50 });
+  }
+
+  const segmentLen = 100;
+  const arrowLen = (a.cells.length - 1) * segmentLen;
+
+  overlay.style.display = 'block';
+  overlay.style.opacity = '';
 
   const startTime = performance.now();
   const duration = 500; // ms
@@ -3431,21 +3551,46 @@ function tapArrow(idx) {
       playedBorderSparkle = true;
     }
 
-    const slideDist = easedP * flyDistance;
-    const tx = slideDist * dx;
-    const ty = slideDist * dy;
-    el.style.transform = `translate(${tx}px, ${ty}px)`;
-    el.style.opacity = Math.max(0, 1 - p * 1.5);
+    const slideDist = easedP * totalFlyDist * segmentLen;
+    const dStart = slideDist;
+    const dEnd = dStart + arrowLen;
+
+    const sub = sampleSubPath(pts, dStart, dEnd);
+
+    if (sub.length >= 2) {
+      const polyStr = sub.map(pt => pt.sx + ',' + pt.sy).join(' ');
+      shaft.setAttribute('points', polyStr);
+
+      const pLast = sub[sub.length - 1];
+      const pPrev = sub[sub.length - 2];
+      const dist = Math.hypot(pLast.sx - pPrev.sx, pLast.sy - pPrev.sy);
+      if (dist > 0) {
+        const ux = (pLast.sx - pPrev.sx) / dist;
+        const uy = (pLast.sy - pPrev.sy) / dist;
+        const vx = -uy, vy = ux;
+
+        const tipX = pLast.sx;
+        const tipY = pLast.sy;
+        const leftX = tipX - HS * ux + HS * 0.45 * vx;
+        const leftY = tipY - HS * uy + HS * 0.45 * vy;
+        const rightX = tipX - HS * ux - HS * 0.45 * vx;
+        const rightY = tipY - HS * uy - HS * 0.45 * vy;
+
+        head.setAttribute('points', `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`);
+      }
+    }
+
+    // Fade overlay opacity at the end
+    overlay.style.opacity = Math.max(0, 1 - p * 1.5);
 
     if (p < 1) {
       requestAnimationFrame(frame);
     } else {
-      el.style.transform = '';
-      el.style.opacity = '';
-      el.style.willChange = '';
-      el.classList.remove('flying-green');
-      el.style.pointerEvents = '';
-      
+      overlay.style.display = 'none';
+      overlay.style.opacity = '';
+      shaft.removeAttribute('points');
+      head.removeAttribute('points');
+
       a.active = false;
       G.animating = false;
       removeArrowFromBoard(idx);
