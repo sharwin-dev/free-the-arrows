@@ -1301,7 +1301,9 @@ function generateFullyPackedArrows(grid, shapeType, customMask, rng, minLen = 2,
     }
 
     if (backtrackSearch() && emptyCells.size === 0) {
-      return arrows;
+      if (ensureSolvable(arrows, grid, rng)) {
+        return arrows;
+      }
     }
   }
 
@@ -1641,7 +1643,7 @@ function ensureSolvable(arrows, grid, rng) {
   for (let iter = 0; iter < 100; iter++) {
     const cellIdx = buildCellIndex();
     const result = simulate(cellIdx);
-    if (result.freed === arrows.length) return; // fully solvable!
+    if (result.freed === arrows.length) return true; // fully solvable!
 
     // Find stuck arrows (still active after simulation)
     const stuck = [];
@@ -1672,7 +1674,7 @@ function ensureSolvable(arrows, grid, rng) {
     }
   }
   // After max iterations, puzzle may still not be perfectly solvable
-  // but it's much better than the original
+  return false;
 }
 
 function generateCustomLevel(grid, complexity, seedVal, shapeType, customMask) {
