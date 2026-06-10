@@ -137,7 +137,7 @@
 
     /* ---- Board ---- */
     .board-wrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:700px;padding:20px;min-height:0}
-    .board{position:relative;width:100%;max-width:660px;max-height:100%;aspect-ratio:1/1;background:var(--board-bg);border:1.5px solid var(--board-border);border-radius:18px;box-shadow:var(--board-shadow);overflow:visible;transition:background .3s,border-color .3s,box-shadow .3s;backdrop-filter:blur(10px)}
+    .board{position:relative;width:100%;max-width:660px;max-height:100%;aspect-ratio:1/1;background:var(--board-bg);border:1.5px solid var(--board-border);border-radius:18px;box-shadow:var(--board-shadow);overflow:visible;transition:background .3s,border-color .3s,box-shadow .3s;backdrop-filter:blur(10px);-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);will-change:transform}
 
     /* Screen shake */
     @keyframes shake {
@@ -159,11 +159,11 @@
     @keyframes spin{to{transform:rotate(360deg)}}
 
     /* ---- Arrow ---- */
-    .arrow{position:absolute;cursor:pointer;z-index:2}
-    .arrow svg{display:block;width:100%;height:100%;overflow:visible}
-    .arrow .shaft{stroke:var(--arrow-color);stroke-linecap:round;stroke-linejoin:round;fill:none;filter:drop-shadow(var(--arrow-glow));transition:stroke 0.25s,filter 0.25s}
+    .arrow{position:absolute;cursor:pointer;z-index:2;will-change:transform;-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0)}
+    .arrow svg{display:block;width:100%;height:100%;overflow:visible;filter:drop-shadow(var(--arrow-glow));transition:filter 0.25s}
+    .arrow .shaft{stroke:var(--arrow-color);stroke-linecap:round;stroke-linejoin:round;fill:none;transition:stroke 0.25s}
     .arrow .hit-area{stroke:transparent;stroke-linecap:round;stroke-linejoin:round;fill:none;pointer-events:none}
-    .arrow .head{fill:var(--arrow-color);filter:drop-shadow(var(--arrow-glow));transition:fill 0.25s,filter 0.25s}
+    .arrow .head{fill:var(--arrow-color);transition:fill 0.25s}
     .arrow:active{opacity:.55}
 
     /* Flying */
@@ -178,6 +178,12 @@
     .arrow.flying-green{pointer-events:none;filter:drop-shadow(0 0 8px rgba(46,213,115,0.85))}
     .arrow.flying-green .shaft{stroke:#2ED573 !important}
     .arrow.flying-green .head{fill:#2ED573 !important}
+
+    /* Disable transitions on animating overlay SVGs and their children */
+    .arrow.blocked, .arrow.flying-green,
+    .arrow.blocked *, .arrow.flying-green * {
+      transition: none !important;
+    }
     @keyframes wiggle{
       0%,100%{transform:translate(0,0)}
       20%{transform:translate(var(--wx),var(--wy))}
@@ -187,12 +193,12 @@
     }
 
     /* Ghost trail */
-    .ghost{position:absolute;pointer-events:none;z-index:1}
+    .ghost{position:absolute;pointer-events:none;z-index:1;will-change:opacity}
     .ghost svg{display:block;width:100%;height:100%;overflow:visible}
     .ghost .trail{stroke:var(--text-muted);stroke-width:2.5;stroke-dasharray:4 6;stroke-linecap:round;stroke-linejoin:round;fill:none;opacity:0.6}
 
     /* Ripple */
-    .ripple{position:absolute;border-radius:50%;background:var(--accent-bg);pointer-events:none;animation:rip .6s ease-out forwards;z-index:0}
+    .ripple{position:absolute;border-radius:50%;background:var(--accent-bg);pointer-events:none;animation:rip .6s ease-out forwards;z-index:0;will-change:transform,opacity}
     @keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(2.8);opacity:0}}
 
     .ripple.blocked-impact {
@@ -213,6 +219,7 @@
       pointer-events: none;
       z-index: 5;
       animation: explode 0.6s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+      will-change: transform, opacity;
     }
     @keyframes explode {
       0% {
@@ -247,6 +254,71 @@
       border-radius: 50%;
       background: var(--dot-color);
       opacity: 0.7;
+    }
+
+    /* ---- Tool Bar ---- */
+    .tool-bar {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      max-width: 700px;
+      padding: 0 20px;
+      margin-top: -8px;
+      margin-bottom: 4px;
+    }
+    .tool-btn {
+      flex: 1;
+      max-width: 130px;
+      padding: 10px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      background: var(--btn-bg);
+      color: var(--btn-color);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s, box-shadow 0.15s;
+    }
+    .tool-btn:active {
+      transform: scale(0.96);
+    }
+    .tool-btn.active {
+      background: var(--accent-color);
+      color: #fff;
+      border-color: var(--accent-color);
+      box-shadow: 0 0 10px var(--accent-bg);
+    }
+    .tool-btn.eraser-active {
+      background: #FF2E93;
+      color: #fff;
+      border-color: #FF2E93;
+      box-shadow: 0 0 12px rgba(255, 46, 147, 0.5);
+    }
+
+    /* Red highlight board border when eraser is active */
+    .board.eraser-active {
+      border-color: #FF2E93 !important;
+      box-shadow: 0 0 20px rgba(255, 46, 147, 0.4), inset 0 0 20px rgba(255, 46, 147, 0.15) !important;
+    }
+
+    /* Pulse highlight animation for locator */
+    @keyframes pulseHighlight {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.08);
+      }
+    }
+    .pulse-highlight {
+      animation: pulseHighlight 0.5s ease-in-out 3;
+      z-index: 10 !important;
     }
 
     /* ---- Bottom Bar ---- */
@@ -424,6 +496,12 @@
       <button class="zoom-btn" id="btn-zoom-out" aria-label="Zoom out" disabled>-</button>
     </div>
   </div>
+</div>
+
+<div class="tool-bar">
+  <button class="tool-btn" id="btn-eraser" aria-label="Toggle Eraser Mode">🧼 Eraser</button>
+  <button class="tool-btn" id="btn-guides" aria-label="Toggle Direction Guides">🧭 Guides</button>
+  <button class="tool-btn" id="btn-locator" aria-label="Find Remaining Arrows">🔍 Locator</button>
 </div>
 
 <div class="bottom-bar">
@@ -2052,6 +2130,8 @@ let G = {
   history: [],
   animating: false,
   hasDragged: false,
+  eraserActive: false,
+  showPaths: false,
   stats: {
     totalTaps: 0,
     perfects: 0,
@@ -2335,6 +2415,108 @@ const ovWin   = document.getElementById('ov-win');
 const ovFail  = document.getElementById('ov-fail');
 const ovMenu  = document.getElementById('ov-menu');
 const lvlGrid = document.getElementById('lvl-grid');
+
+function updateToolbarUI() {
+  const btnEraser = document.getElementById('btn-eraser');
+  const btnGuides = document.getElementById('btn-guides');
+  const boardEl = document.getElementById('board');
+  
+  if (btnEraser) {
+    btnEraser.classList.toggle('eraser-active', G.eraserActive);
+  }
+  if (boardEl) {
+    boardEl.classList.toggle('eraser-active', G.eraserActive);
+  }
+  if (btnGuides) {
+    btnGuides.classList.toggle('active', G.showPaths);
+  }
+}
+
+function resetHelperTools() {
+  G.eraserActive = false;
+  updateToolbarUI();
+}
+
+function eraseArrow(idx) {
+  const a = G.arrows[idx];
+  if (!a || !a.active) return;
+
+  // Save undo state
+  G.history.push(G.arrows.map(ar => ar.active));
+  document.getElementById('btn-undo').disabled = false;
+
+  G.animating = true;
+
+  // Play slide sound as swoosh
+  Sound.init();
+  Sound.playSlide();
+
+  // Determine color and spawn particles on all arrow cells
+  let arrowColor = a.color || 'var(--arrow-color)';
+  if (arrowColorMode === 'direction') arrowColor = directionColorMap[a.headDir] || arrowColor;
+
+  a.cells.forEach(c => {
+    // Spawn 15 particles per cell
+    spawnParticles(c.x, c.y, arrowColor);
+  });
+
+  // Turn off eraser mode
+  G.eraserActive = false;
+  updateToolbarUI();
+  hintEl.textContent = 'Free all arrows';
+
+  // Make the arrow inactive
+  a.active = false;
+  
+  // End animation state after a short delay
+  setTimeout(() => {
+    G.animating = false;
+    render();
+    checkWin();
+  }, 500);
+
+  // Hide the element immediately
+  const el = boardContent.querySelector(`.arrow[data-idx="${idx}"]`);
+  if (el) {
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+  }
+}
+
+// Bind Helper Tools
+document.getElementById('btn-eraser').onclick = () => {
+  if (G.animating) return;
+  G.eraserActive = !G.eraserActive;
+  updateToolbarUI();
+  if (G.eraserActive) {
+    hintEl.textContent = 'Eraser Active: Tap any arrow to remove it';
+  } else {
+    hintEl.textContent = 'Free all arrows';
+  }
+};
+
+document.getElementById('btn-guides').onclick = () => {
+  G.showPaths = !G.showPaths;
+  updateToolbarUI();
+  render();
+};
+
+document.getElementById('btn-locator').onclick = () => {
+  if (G.animating) return;
+  
+  // Highlight remaining arrows
+  const arrowsEl = boardContent.querySelectorAll('.arrow');
+  arrowsEl.forEach(el => {
+    el.classList.remove('pulse-highlight');
+    void el.offsetWidth; // trigger reflow
+    el.classList.add('pulse-highlight');
+  });
+  
+  // Clean up class after animation ends
+  setTimeout(() => {
+    arrowsEl.forEach(el => el.classList.remove('pulse-highlight'));
+  }, 1500);
+};
 
 document.getElementById('btn-menu').onclick      = openMenu;
 document.getElementById('btn-restart').onclick    = () => {
@@ -2811,6 +2993,10 @@ board.addEventListener('pointerup', (e) => {
       if (arrowIdx >= 0) {
         tapArrow(arrowIdx);
         G.hasDragged = true; // prevent boardContent click from double-firing
+      } else if (G.eraserActive) {
+        G.eraserActive = false;
+        updateToolbarUI();
+        hintEl.textContent = 'Free all arrows';
       }
     }
   }
@@ -2858,7 +3044,13 @@ function getArrowAtPoint(clientX, clientY) {
 boardContent.addEventListener('click', (e) => {
   if (G.hasDragged) return;
   const arrowIdx = getArrowAtPoint(e.clientX, e.clientY);
-  if (arrowIdx >= 0) tapArrow(arrowIdx);
+  if (arrowIdx >= 0) {
+    tapArrow(arrowIdx);
+  } else if (G.eraserActive) {
+    G.eraserActive = false;
+    updateToolbarUI();
+    hintEl.textContent = 'Free all arrows';
+  }
 });
 
 /* ============================================================
@@ -2973,10 +3165,23 @@ function render() {
     let arrowColor = a.color || 'var(--arrow-color)';
     if (arrowColorMode === 'direction') arrowColor = directionColorMap[a.headDir] || arrowColor;
 
-    el.innerHTML = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
+    let guideHtml = '';
+    if (G.showPaths) {
+      let ex = hp.sx, ey = hp.sy;
+      switch (a.headDir) {
+        case 'up':    ey -= 5000; break;
+        case 'down':  ey += 5000; break;
+        case 'left':  ex -= 5000; break;
+        case 'right': ex += 5000; break;
+      }
+      guideHtml = `<line x1="${hp.sx}" y1="${hp.sy}" x2="${ex}" y2="${ey}" style="stroke: ${arrowColor}; stroke-width: 2.2px; stroke-dasharray: 6 8; opacity: 0.45; pointer-events: none;" />`;
+    }
+
+    el.innerHTML = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 5px ${arrowColor});">
+      ${guideHtml}
       <polyline class="hit-area" points="${hitStr}" style="stroke-width: ${sw * 6.5};" />
-      <polyline class="shaft" points="${polyStr}" style="stroke-width: ${sw}; stroke: ${arrowColor}; filter: drop-shadow(0 0 5px ${arrowColor});" />
-      <polygon class="head" points="${headPoly}" style="fill: ${arrowColor}; filter: drop-shadow(0 0 5px ${arrowColor});" />
+      <polyline class="shaft" points="${polyStr}" style="stroke-width: ${sw}; stroke: ${arrowColor};" />
+      <polygon class="head" points="${headPoly}" style="fill: ${arrowColor};" />
     </svg>`;
 
     // Click handled at board level (see boardContent click handler below)
@@ -3069,7 +3274,7 @@ function spawnImpactRipple(x, y) {
   setTimeout(() => rip.remove(), 400);
 }
 
-function spawnParticles(x, y) {
+function spawnParticles(x, y, color) {
   const sz = 100 / G.gridSize;
   const startX = x * sz + sz / 2;
   const startY = y * sz + sz / 2;
@@ -3081,9 +3286,8 @@ function spawnParticles(x, y) {
     p.style.left = startX + '%';
     p.style.top = startY + '%';
     
-    // Load active theme arrow color
-    p.style.backgroundColor = 'var(--arrow-color)';
-    p.style.boxShadow = 'var(--arrow-glow)';
+    // Set particle color matching the arrow, without expensive box-shadow blurs
+    p.style.backgroundColor = color || 'var(--arrow-color)';
 
     // Random sizes, speeds & angles
     const size = 4 + Math.random() * 5;
@@ -3229,6 +3433,14 @@ function tapArrow(idx) {
   const a = G.arrows[idx];
   if (!a || !a.active) return;
 
+  if (G.eraserActive) {
+    eraseArrow(idx);
+    return;
+  }
+
+  let arrowColor = a.color || 'var(--arrow-color)';
+  if (arrowColorMode === 'direction') arrowColor = directionColorMap[a.headDir] || arrowColor;
+
   Sound.init();
 
   if (isBlockedRuntime(idx)) {
@@ -3253,7 +3465,7 @@ function tapArrow(idx) {
 
   // Takeoff sparkles at original arrowhead coordinate
   const headCell = a.cells[a.cells.length - 1];
-  spawnParticles(headCell.x, headCell.y);
+  spawnParticles(headCell.x, headCell.y, arrowColor);
 
   // Show ghost trail and ripple at original position
   showGhost(a);
@@ -3320,7 +3532,7 @@ function tapArrow(idx) {
     // Border exit sparkles trigger
     if (p >= 0.75 && !playedBorderSparkle) {
       const exitCell = getExitCoordinate(lastCell, dx, dy);
-      spawnParticles(exitCell.x, exitCell.y);
+      spawnParticles(exitCell.x, exitCell.y, arrowColor);
       playedBorderSparkle = true;
     }
 
@@ -3561,6 +3773,7 @@ function renderHearts() {
 function loadLevel(num) {
   G.isCustom = false;
   G.levelNum = num;
+  resetHelperTools();
 
   // Show loader & clear board immediately
   const loader = document.getElementById('board-loader');
@@ -3601,6 +3814,7 @@ function loadCustomLevel(grid, complexity, seedVal) {
   G.isCustom = true;
   G.customGrid = grid;
   G.customComplexity = complexity;
+  resetHelperTools();
 
   // Show loader & clear board immediately
   const loader = document.getElementById('board-loader');
