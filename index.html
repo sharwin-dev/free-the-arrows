@@ -160,7 +160,7 @@
 
     /* ---- Arrow ---- */
     .arrow{position:absolute;cursor:pointer;z-index:2;will-change:transform;-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0)}
-    .arrow svg{display:block;width:100%;height:100%;overflow:visible;filter:drop-shadow(var(--arrow-glow));transition:filter 0.25s}
+    .arrow svg{display:block;width:100%;height:100%;overflow:visible}
     .arrow .shaft{stroke:var(--arrow-color);stroke-linecap:round;stroke-linejoin:round;fill:none;transition:stroke 0.25s}
     .arrow .hit-area{stroke:transparent;stroke-linecap:round;stroke-linejoin:round;fill:none;pointer-events:none}
     .arrow .head{fill:var(--arrow-color);transition:fill 0.25s}
@@ -169,13 +169,12 @@
     /* Flying */
     .arrow.flying{transition:transform .5s cubic-bezier(.4,0,.15,1),opacity .45s ease;pointer-events:none;z-index:10}
 
-    /* Wiggle blocked & flash red */
-    .arrow.blocked{pointer-events:none;filter:drop-shadow(0 0 6px rgba(255,46,147,0.75))}
+    .arrow.blocked{pointer-events:none}
     .arrow.blocked .shaft{stroke:#FF2E93 !important}
     .arrow.blocked .head{fill:#FF2E93 !important}
 
     /* Flying green glow */
-    .arrow.flying-green{pointer-events:none;filter:drop-shadow(0 0 8px rgba(46,213,115,0.85))}
+    .arrow.flying-green{pointer-events:none}
     .arrow.flying-green .shaft{stroke:#2ED573 !important}
     .arrow.flying-green .head{fill:#2ED573 !important}
 
@@ -468,6 +467,14 @@
       background: var(--accent-color);
       color: #fff;
       box-shadow: 0 2px 6px var(--accent-bg);
+    }
+
+    /* Disable backdrop filters on touch screens for 60fps mobile Safari performance */
+    @media (hover: none) {
+      .board, .hdr-btn, .zoom-btn, .overlay, .card {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
     }
   </style>
 </head>
@@ -3179,9 +3186,13 @@ function render() {
       guideHtml = `<line x1="${hp.sx}" y1="${hp.sy}" x2="${ex}" y2="${ey}" style="stroke: ${arrowColor}; stroke-width: 2.2px; stroke-dasharray: 6 8; opacity: 0.45; pointer-events: none;" />`;
     }
 
-    el.innerHTML = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 5px ${arrowColor});">
+    el.innerHTML = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
       ${guideHtml}
       <polyline class="hit-area" points="${hitStr}" style="stroke-width: ${sw * 6.5};" />
+      <!-- Vector glow backplate -->
+      <polyline points="${polyStr}" style="stroke-width: ${sw * 2.8}; stroke: ${arrowColor}; stroke-linecap: round; stroke-linejoin: round; fill: none; opacity: 0.35;" />
+      <polygon points="${headPoly}" style="fill: ${arrowColor}; stroke: ${arrowColor}; stroke-width: ${sw * 2.8}; stroke-linejoin: round; opacity: 0.35;" />
+      <!-- Main arrow lines -->
       <polyline class="shaft" points="${polyStr}" style="stroke-width: ${sw}; stroke: ${arrowColor};" />
       <polygon class="head" points="${headPoly}" style="fill: ${arrowColor};" />
     </svg>`;
@@ -3223,26 +3234,27 @@ function isBlockedRuntime(idx) {
   return getBlockingDistance(idx) !== Infinity;
 }
 
+function getPointAt(P, d) {
+  const segmentLen = 100;
+  if (d <= 0) return { sx: P[0].sx, sy: P[0].sy };
+  const maxDist = (P.length - 1) * segmentLen;
+  if (d >= maxDist) return { sx: P[P.length - 1].sx, sy: P[P.length - 1].sy };
+
+  const idx = Math.floor(d / segmentLen);
+  const frac = (d % segmentLen) / segmentLen;
+  const p0 = P[idx];
+  const p1 = P[idx + 1];
+  return {
+    sx: p0.sx + (p1.sx - p0.sx) * frac,
+    sy: p0.sy + (p1.sy - p0.sy) * frac
+  };
+}
+
 function sampleSubPath(P, dStart, dEnd) {
   const segmentLen = 100;
   const result = [];
 
-  function getPointAt(d) {
-    if (d <= 0) return { sx: P[0].sx, sy: P[0].sy };
-    const maxDist = (P.length - 1) * segmentLen;
-    if (d >= maxDist) return { sx: P[P.length - 1].sx, sy: P[P.length - 1].sy };
-
-    const idx = Math.floor(d / segmentLen);
-    const frac = (d % segmentLen) / segmentLen;
-    const p0 = P[idx];
-    const p1 = P[idx + 1];
-    return {
-      sx: p0.sx + (p1.sx - p0.sx) * frac,
-      sy: p0.sy + (p1.sy - p0.sy) * frac
-    };
-  }
-
-  result.push(getPointAt(dStart));
+  result.push(getPointAt(P, dStart));
 
   for (let i = 1; i < P.length - 1; i++) {
     const dVert = i * segmentLen;
@@ -3251,7 +3263,7 @@ function sampleSubPath(P, dStart, dEnd) {
     }
   }
 
-  result.push(getPointAt(dEnd));
+  result.push(getPointAt(P, dEnd));
   return result;
 }
 
@@ -3281,7 +3293,8 @@ function spawnParticles(x, y, color) {
   const startX = x * sz + sz / 2;
   const startY = y * sz + sz / 2;
 
-  const count = 10 + Math.floor(Math.random() * 5);
+  const isMobile = window.matchMedia('(hover: none)').matches;
+  const count = isMobile ? (4 + Math.floor(Math.random() * 3)) : (10 + Math.floor(Math.random() * 5));
   for (let i = 0; i < count; i++) {
     const p = document.createElement('div');
     p.className = 'particle';
