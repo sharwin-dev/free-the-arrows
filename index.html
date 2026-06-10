@@ -137,7 +137,7 @@
 
     /* ---- Board ---- */
     .board-wrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:700px;padding:20px;min-height:0}
-    .board{position:relative;width:100%;max-width:660px;max-height:100%;aspect-ratio:1/1;background:var(--board-bg);border:1.5px solid var(--board-border);border-radius:18px;box-shadow:var(--board-shadow);overflow:visible;transition:background .3s,border-color .3s,box-shadow .3s;backdrop-filter:blur(10px);-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);will-change:transform}
+    .board{position:relative;width:100%;max-width:660px;max-height:100%;aspect-ratio:1/1;background:var(--board-bg);border:1.5px solid var(--board-border);border-radius:18px;box-shadow:var(--board-shadow);overflow:hidden;transition:background .3s,border-color .3s,box-shadow .3s;backdrop-filter:blur(10px);-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);will-change:transform}
 
     /* Screen shake */
     @keyframes shake {
@@ -159,7 +159,7 @@
     @keyframes spin{to{transform:rotate(360deg)}}
 
     /* ---- Arrow ---- */
-    .arrow{position:absolute;cursor:pointer;z-index:2;will-change:transform;-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0)}
+    .arrow{position:absolute;cursor:pointer;z-index:2}
     .arrow svg{display:block;width:100%;height:100%;overflow:visible}
     .arrow .shaft{stroke:var(--arrow-color);stroke-linecap:round;stroke-linejoin:round;fill:none;transition:stroke 0.25s}
     .arrow .head{fill:var(--arrow-color);transition:fill 0.25s}
@@ -463,6 +463,9 @@
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
       }
+      .board {
+        box-shadow: 0 6px 20px rgba(0,0,0,0.4) !important;
+      }
     }
   </style>
 </head>
@@ -481,7 +484,7 @@
 
 <div class="board-wrap">
   <div class="board" id="board" style="overflow: hidden; touch-action: none;">
-    <div id="board-content" style="position: absolute; inset: 4%; transform-origin: 0 0; transition: transform 0.15s ease-out, opacity 0.3s ease;"></div>
+    <div id="board-content" style="position: absolute; inset: 4%; transform-origin: 0 0; transition: opacity 0.3s ease;"></div>
     <div class="board-loader hidden" id="board-loader">
       <div class="spinner"></div>
       <span class="loader-text">Generating…</span>
@@ -3224,39 +3227,6 @@ function isBlockedRuntime(idx) {
   return getBlockingDistance(idx) !== Infinity;
 }
 
-function getPointAt(P, d) {
-  const segmentLen = 100;
-  if (d <= 0) return { sx: P[0].sx, sy: P[0].sy };
-  const maxDist = (P.length - 1) * segmentLen;
-  if (d >= maxDist) return { sx: P[P.length - 1].sx, sy: P[P.length - 1].sy };
-
-  const idx = Math.floor(d / segmentLen);
-  const frac = (d % segmentLen) / segmentLen;
-  const p0 = P[idx];
-  const p1 = P[idx + 1];
-  return {
-    sx: p0.sx + (p1.sx - p0.sx) * frac,
-    sy: p0.sy + (p1.sy - p0.sy) * frac
-  };
-}
-
-function sampleSubPath(P, dStart, dEnd) {
-  const segmentLen = 100;
-  const result = [];
-
-  result.push(getPointAt(P, dStart));
-
-  for (let i = 1; i < P.length - 1; i++) {
-    const dVert = i * segmentLen;
-    if (dVert > dStart && dVert < dEnd) {
-      result.push({ sx: P[i].sx, sy: P[i].sy });
-    }
-  }
-
-  result.push(getPointAt(P, dEnd));
-  return result;
-}
-
 function triggerScreenShake() {
   board.classList.remove('shake');
   // Use double-rAF to restart animation without forced reflow
@@ -3332,47 +3302,20 @@ function animateBlockedBounce(idx) {
   if (!el) return;
 
   G.animating = true;
-  el.style.opacity = '0';
+  el.classList.add('blocked');
   el.style.pointerEvents = 'none';
+  el.style.willChange = 'transform';
 
-  const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  overlay.setAttribute('class', 'arrow blocked');
-  overlay.style.position = 'absolute';
-  overlay.style.inset = '0';
-  overlay.style.width = '100%';
-  overlay.style.height = '100%';
-  overlay.style.overflow = 'visible';
-  overlay.style.pointerEvents = 'none';
-  overlay.style.zIndex = '10';
-  overlay.setAttribute('viewBox', `0 0 ${G.gridSize * 100} ${G.gridSize * 100}`);
-
-  const sw = Math.max(3.5, 3.5 * (G.gridSize / 6) * 0.65);
-  const HS = Math.max(16, 16 * (G.gridSize / 6) * 0.6);
-
-  const shaft = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  shaft.setAttribute('class', 'shaft');
-  shaft.setAttribute('style', `stroke-width:${sw}; stroke-linecap:round; stroke-linejoin:round; fill:none;`);
-  const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  head.setAttribute('class', 'head');
-
-  overlay.appendChild(shaft);
-  overlay.appendChild(head);
-  boardContent.appendChild(overlay);
-
-  const pts = a.cells.map(c => ({ sx: c.x * 100 + 50, sy: c.y * 100 + 50 }));
   const dx = DIR_DX[a.headDir];
   const dy = DIR_DY[a.headDir];
   const lastCell = a.cells[a.cells.length - 1];
 
   const blockCells = Math.min(G.gridSize, getBlockingDistance(idx));
-  const D_peak = Math.max(0, (blockCells - 1) * 100 + 35);
+  
+  const rect = boardContent.getBoundingClientRect();
+  const cellPx = rect.width / G.gridSize;
+  const peakDist = Math.max(0, (blockCells - 1) * cellPx + 35 * (cellPx / 100));
 
-  for (let i = 1; i <= blockCells; i++) {
-    pts.push({ sx: (lastCell.x + dx * i) * 100 + 50, sy: (lastCell.y + dy * i) * 100 + 50 });
-  }
-
-  const segmentLen = 100;
-  const arrowLen = (a.cells.length - 1) * segmentLen;
   const startTime = performance.now();
   const duration = 400; // ms
   let playedEffects = false;
@@ -3390,45 +3333,22 @@ function animateBlockedBounce(idx) {
       playedEffects = true;
     }
 
-    const slideDist = easedP * D_peak;
-    const dStart = slideDist;
-    const dEnd = dStart + arrowLen;
-
-    const sub = sampleSubPath(pts, dStart, dEnd);
-
-    if (sub.length >= 2) {
-      const polyStr = sub.map(pt => pt.sx + ',' + pt.sy).join(' ');
-      shaft.setAttribute('points', polyStr);
-
-      const pLast = sub[sub.length - 1];
-      const pPrev = sub[sub.length - 2];
-      const dist = Math.hypot(pLast.sx - pPrev.sx, pLast.sy - pPrev.sy);
-      if (dist > 0) {
-        const ux = (pLast.sx - pPrev.sx) / dist;
-        const uy = (pLast.sy - pPrev.sy) / dist;
-        const vx = -uy, vy = ux;
-
-        const tipX = pLast.sx;
-        const tipY = pLast.sy;
-        const leftX = tipX - HS * ux + HS * 0.45 * vx;
-        const leftY = tipY - HS * uy + HS * 0.45 * vy;
-        const rightX = tipX - HS * ux - HS * 0.45 * vx;
-        const rightY = tipY - HS * uy - HS * 0.45 * vy;
-
-        head.setAttribute('points', `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`);
-      }
-    }
+    const slideDist = easedP * peakDist;
+    const tx = slideDist * dx;
+    const ty = slideDist * dy;
+    el.style.transform = `translate(${tx}px, ${ty}px)`;
 
     if (p < 1) {
       requestAnimationFrame(frame);
     } else {
-      overlay.remove();
+      el.style.transform = '';
+      el.style.willChange = '';
+      el.classList.remove('blocked');
+      el.style.pointerEvents = '';
+      
       G.hearts--;
       renderHearts();
       G.animating = false;
-      // Restore original arrow visibility (it's still on the board)
-      el.style.opacity = '';
-      el.style.pointerEvents = '';
 
       if (G.hearts <= 0) {
         setTimeout(() => ovFail.classList.add('show'), 400);
@@ -3481,49 +3401,20 @@ function tapArrow(idx) {
   showGhost(a);
   showRipple(a);
 
-  // Hide original arrow element
-  el.style.opacity = '0';
+  // Animate the existing arrow element using CSS transforms
+  el.classList.add('flying-green');
   el.style.pointerEvents = 'none';
+  el.style.willChange = 'transform, opacity';
 
-  // Create temporary overlay SVG
-  const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  overlay.setAttribute('class', 'arrow flying-green');
-  overlay.style.position = 'absolute';
-  overlay.style.inset = '0';
-  overlay.style.width = '100%';
-  overlay.style.height = '100%';
-  overlay.style.overflow = 'visible';
-  overlay.style.pointerEvents = 'none';
-  overlay.style.zIndex = '10';
-  overlay.setAttribute('viewBox', `0 0 ${G.gridSize * 100} ${G.gridSize * 100}`);
-
-  const sw = Math.max(3.5, 3.5 * (G.gridSize / 6) * 0.65);
-  const HS = Math.max(16, 16 * (G.gridSize / 6) * 0.6);
-
-  const shaft = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  shaft.setAttribute('class', 'shaft');
-  shaft.setAttribute('style', `stroke-width:${sw}; stroke-linecap:round; stroke-linejoin:round; fill:none;`);
-  const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  head.setAttribute('class', 'head');
-
-  overlay.appendChild(shaft);
-  overlay.appendChild(head);
-  boardContent.appendChild(overlay);
-
-  // Construct full trajectory points
-  const pts = a.cells.map(c => ({ sx: c.x * 100 + 50, sy: c.y * 100 + 50 }));
   const dx = DIR_DX[a.headDir];
   const dy = DIR_DY[a.headDir];
   const lastCell = a.cells[a.cells.length - 1];
 
-  // Extend trajectory off-screen
+  const rect = boardContent.getBoundingClientRect();
+  const cellPx = rect.width / G.gridSize;
   const totalFlyDist = G.gridSize + 3;
-  for (let i = 1; i <= totalFlyDist; i++) {
-    pts.push({ sx: (lastCell.x + dx * i) * 100 + 50, sy: (lastCell.y + dy * i) * 100 + 50 });
-  }
+  const flyDistance = totalFlyDist * cellPx;
 
-  const segmentLen = 100;
-  const arrowLen = (a.cells.length - 1) * segmentLen;
   const startTime = performance.now();
   const duration = 500; // ms
   let playedBorderSparkle = false;
@@ -3533,12 +3424,6 @@ function tapArrow(idx) {
     const p = Math.min(1, elapsed / duration);
     const easedP = p * p * (3 - 2 * p); // smooth step easing
 
-    const slideDist = easedP * totalFlyDist * segmentLen;
-    const dStart = slideDist;
-    const dEnd = dStart + arrowLen;
-
-    const sub = sampleSubPath(pts, dStart, dEnd);
-
     // Border exit sparkles trigger
     if (p >= 0.75 && !playedBorderSparkle) {
       const exitCell = getExitCoordinate(lastCell, dx, dy);
@@ -3546,33 +3431,21 @@ function tapArrow(idx) {
       playedBorderSparkle = true;
     }
 
-    if (sub.length >= 2) {
-      const polyStr = sub.map(pt => pt.sx + ',' + pt.sy).join(' ');
-      shaft.setAttribute('points', polyStr);
-
-      const pLast = sub[sub.length - 1];
-      const pPrev = sub[sub.length - 2];
-      const dist = Math.hypot(pLast.sx - pPrev.sx, pLast.sy - pPrev.sy);
-      if (dist > 0) {
-        const ux = (pLast.sx - pPrev.sx) / dist;
-        const uy = (pLast.sy - pPrev.sy) / dist;
-        const vx = -uy, vy = ux;
-
-        const tipX = pLast.sx;
-        const tipY = pLast.sy;
-        const leftX = tipX - HS * ux + HS * 0.45 * vx;
-        const leftY = tipY - HS * uy + HS * 0.45 * vy;
-        const rightX = tipX - HS * ux - HS * 0.45 * vx;
-        const rightY = tipY - HS * uy - HS * 0.45 * vy;
-
-        head.setAttribute('points', `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`);
-      }
-    }
+    const slideDist = easedP * flyDistance;
+    const tx = slideDist * dx;
+    const ty = slideDist * dy;
+    el.style.transform = `translate(${tx}px, ${ty}px)`;
+    el.style.opacity = Math.max(0, 1 - p * 1.5);
 
     if (p < 1) {
       requestAnimationFrame(frame);
     } else {
-      overlay.remove();
+      el.style.transform = '';
+      el.style.opacity = '';
+      el.style.willChange = '';
+      el.classList.remove('flying-green');
+      el.style.pointerEvents = '';
+      
       a.active = false;
       G.animating = false;
       removeArrowFromBoard(idx);
